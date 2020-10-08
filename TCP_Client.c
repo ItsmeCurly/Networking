@@ -41,6 +41,6 @@ int main()
     }
     printf("File contents successfully written\n");
     fclose(fp);
-
+    
     printf("\nEnd of message\n");
 }

@@ -110,7 +110,6 @@ int getfilesize(char* filename) {
         }
         count += 1;
     }
-
     fclose(fp);
 
     return count;
