@@ -5,38 +5,35 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <errno.h>
+#include <stdlib.h>
 
-#define cl_IP "0.0.0.0"
-#define cl_PORT 45022
+#define cl_IP "127.0.0.1"
+#define cl_PORT 45023
 
-#define s_IP "0.0.0.0"
+#define s_IP "127.0.0.1"
 #define s_PORT 45022
 
 int main(int argc, char *argv[]) {
     int m_sock;
     char buf[12];
-    struct sockaddr_in m_addr, server_addr;
+    struct sockaddr_in client, server;
     int num_bytes;
 
-    int slen = sizeof(struct sockaddr_in);
-
-    if((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    if((m_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Error: socket creation failed\n");
         exit(0);
     }
-    
 
-    m_addr.sin_family = AF_INET;
-    m_addr.sin_port = htons(cl_PORT);
-
-    inet_pton(AF_INET, cl_IP, &(m_addr.sin_addr)); //bind client ip
+    client.sin_family = AF_INET;
+    client.sin_port = htons(cl_PORT);
+    inet_pton(AF_INET, cl_IP, &(client.sin_addr)); //setup client socket
 
     printf("Binding...\n");
     
     #define NUM_TRIES 5
     int i = 0;
 
-    while(bind(m_sock, (struct sockaddr *)&m_addr, sizeof(m_addr)) < 0) {
+    while(bind(m_sock, (struct sockaddr *)&client, sizeof(client)) < 0) {
         if (i == 0) {
             perror("Error: Bind failed\n");
         }
@@ -57,12 +54,18 @@ int main(int argc, char *argv[]) {
 
     printf("Bind completed\n");
     
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(s_PORT);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(s_PORT);
+    inet_pton(AF_INET, s_IP, &(server.sin_addr)); //server ip
 
-    inet_pton(AF_INET, s_IP, &(server_addr.sin_addr)); //server ip
+    printf("Sending initialization message to server...\n");
 
-    sendto(m_sock, buf, recv_len, 0, (struct sockaddr*) &server_addr, slen); //send initialization message to server
+    int slen = sizeof(client);
+
+    if (sendto(m_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
+        printf("Error sending message to server");
+        exit(1);
+    }
 
     #define ARR_SIZE 10000
 
@@ -77,24 +80,26 @@ int main(int argc, char *argv[]) {
     int received = 0;
 
     while(1) {
-        recv_size = recvfrom(m_sock, buf, sizeof(buf), 0, (struct sockaddr *) &server_addr, &slen);
+        slen = sizeof(struct sockaddr_in);
+
+        int recv_size = recvfrom(m_sock, buf, sizeof(buf), 0, (struct sockaddr *) &server, &slen);
 
         if (recv_size < 2) {
             perror("Receive size less than expected\n");
         }
 
-        //not too sure if I should check if the data is fragmented or not, that is, check for garbage before accessing it
-
-        index = atoi(buf[0]);
+        index = (int)(buf[0]);
         
-        arr[index] = atoi(buf[1]);
+        arr[index] = (int)(buf[1]);
         ack[index] = 1;
 
         received += 1;
 
         if (received >= 3000) {
-            printf("Received 3000 messages, breaking");
+            printf("Received 3000 messages, breaking\n");
             break;
         }
     }
+
+    printf("%d messages received\n", received);
 }
