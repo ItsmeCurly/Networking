@@ -33,28 +33,28 @@ int main(int argc, char *argv[]) {
     //inet_pton(AF_INET, s_IP, &(server.sin_addr));
 
     #define NUM_TRIES 5
-    int i = 1;
+    int j = 1;
 
     printf("Binding...\n");
 
     while (bind(m_sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
-        if (i == 1) {
+        if (j == 1) {
             perror("Error: Bind failed");
         }
         else {
             char* temp = "Attempt";
             char* m_b = malloc(strlen(temp) + 8);
 
-            sprintf(m_b, "%s #%d", temp, i);
+            sprintf(m_b, "%s #%d", temp, j);
             
             perror(m_b);
         }
         sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
 
-        if (i >= NUM_TRIES) {
+        if (j >= NUM_TRIES) {
             exit(0);
         }
-        i+=1;
+        j+=1;
     }
 
     printf("Bind completed\n");
