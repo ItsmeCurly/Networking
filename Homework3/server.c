@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define s_IP "10.0.2.15"
+#define s_IP "130.111.46.105"
 #define s_PORT 45022
 
 char* concat(const char*, const char*);

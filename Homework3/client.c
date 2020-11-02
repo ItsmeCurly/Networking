@@ -7,10 +7,10 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define cl_IP "130.111.46.105"
+#define cl_IP "10.0.2.15"
 #define cl_PORT 45023
 
-#define s_IP "10.0.2.15"
+#define s_IP "130.111.46.105"
 #define s_PORT 45022
 
 struct msg {
