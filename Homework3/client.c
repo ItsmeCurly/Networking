@@ -7,11 +7,16 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define cl_IP "127.0.0.1"
+#define cl_IP "130.111.46.105"
 #define cl_PORT 45023
 
-#define s_IP "127.0.0.1"
+#define s_IP "10.0.2.15"
 #define s_PORT 45022
+
+struct msg {
+    int chunkNum;
+    int val;
+};
 
 int main(int argc, char *argv[]) {
     int m_sock;
@@ -45,7 +50,7 @@ int main(int argc, char *argv[]) {
             
             perror(m_b);
         }
-        sleep(2);
+        sleep(2);   //retry in the next two seconds
 
         if (i >= NUM_TRIES) {
             exit(0);
@@ -60,37 +65,43 @@ int main(int argc, char *argv[]) {
 
     printf("Sending initialization message to server...\n");
 
-    int slen = sizeof(client);
+    socklen_t slen = sizeof(client);  //initialize sock address len
 
     if (sendto(m_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
         printf("Error sending message to server");
         exit(1);
     }
 
+    printf("Message succesfully sent to server\n");
+
+    //declare recv_arr and ack array
+
     #define ARR_SIZE 10000
 
-    int index = 0;
-
-    int arr[ARR_SIZE];
-    memset(arr, -1, ARR_SIZE * sizeof(arr[0]));
+    int recv_arr[ARR_SIZE];
+    memset(recv_arr, -1, ARR_SIZE * sizeof(recv_arr[0]));
 
     int ack[ARR_SIZE];
     memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
 
-    int received = 0;
+    int index = 0, received = 0;
+
+    struct msg m_msg;
+
+    printf("Receiving messages from server\n");
 
     while(1) {
         slen = sizeof(struct sockaddr_in);
 
-        int recv_size = recvfrom(m_sock, buf, sizeof(buf), 0, (struct sockaddr *) &server, &slen);
+        int recv_size = recvfrom(m_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen);
 
         if (recv_size < 2) {
             perror("Receive size less than expected\n");
         }
 
-        index = (int)(buf[0]);
+        index = m_msg.chunkNum;
         
-        arr[index] = (int)(buf[1]);
+        recv_arr[index] = m_msg.val;
         ack[index] = 1;
 
         received += 1;
@@ -102,4 +113,11 @@ int main(int argc, char *argv[]) {
     }
 
     printf("%d messages received\n", received);
+
+    for (int i = 0; i < ARR_SIZE; i++) {
+        if(recv_arr[i] == -1) {
+            printf("First gap located at position %d\n", i);
+            break;
+        }
+    }
 }

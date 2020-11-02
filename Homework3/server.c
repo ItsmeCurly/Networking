@@ -7,10 +7,15 @@
 #include <errno.h>
 #include <stdlib.h>
 
-#define s_IP "127.0.0.1"
+#define s_IP "10.0.2.15"
 #define s_PORT 45022
 
 char* concat(const char*, const char*);
+
+struct msg {
+    int chunkNum;
+    int val;
+};
 
 int main(int argc, char *argv[]) {
     int m_sock;
@@ -65,9 +70,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    free(temp);
-
-    printf("Message received from %s at %d port \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
+    printf("Initialization message received from %s at %d port \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
     //create array of integers to send
 
@@ -80,29 +83,19 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Sending data to client...\n");
-    char s1[8], s2[8], *buf;
 
     for (int i = 0; i < ARR_SIZE; i++) {
-        sprintf(s1, "%d", i);
-        sprintf(s2, "%d", arr[i]);
-
-        buf = concat(s1, s2);
+        struct msg m_msg;
         
-        if (sendto(m_sock, buf, sizeof(buf), 0, (struct sockaddr *) &client, addrLen) < 0) {
-            perror("A message was not sent correctly");
-        } //following the specified sendto format
+        m_msg.chunkNum = i;
+        m_msg.val = arr[i];
+        
+        if (sendto(m_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen) < 0) {
+            perror("A message was not sent correctly");\
+        }
     }
 
     printf("Data sent successfully\n");
 
     close(m_sock);
-}
-
-char* concat(const char *s1, const char *s2) {
-    char *result = malloc(strlen(s1) + strlen(s2) + 1);
-
-    strcpy(result, s1);
-    strcat(result, s2);
-
-    return result;
 }
