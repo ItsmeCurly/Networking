@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
 
     printf("Sending initialization message to server...\n");
 
-    socklen_t slen = sizeof(client);  //initialize sock address len
+    socklen_t slen = sizeof(server);  //initialize sock address len
 
     if (sendto(m_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
         printf("Error sending message to server");
@@ -121,4 +121,5 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
+    close(m_sock);
 }
