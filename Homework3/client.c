@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    printf("Message succesfully sent to server\n");
+    printf("Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     //declare recv_arr and ack array
 
@@ -94,10 +94,10 @@ int main(int argc, char *argv[]) {
     while(1) {
         slen = sizeof(struct sockaddr_in);
 
-        int recv_size = recvfrom(m_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen);
-
-        if (recv_size < 2) {
-            perror("Receive size less than expected\n");
+        int recv_size;
+        if(recv_size = (recvfrom(m_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
+            printf("Error receiving message from server");
+            exit(1);
         }
 
         index = m_msg.chunkNum;
