@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <pthread.h> 
 #include <semaphore.h> 
+#include <stdbool.h>
 
 #define server_IP "10.0.2.15"
 #define server_PORT 45022
@@ -23,12 +24,12 @@ struct msg {
     int val;
 };
 
-sem_t mutex1;
-sem_t mutex2; //figure out naming
+pthread_mutex_t mutex1;
+pthread_mutex_t mutex2; //figure out naming
 
 int ack[ARR_SIZE];
 
-bool done = false;
+bool done = false, attempting_send = false;
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -105,10 +106,9 @@ int main(int argc, char *argv[]) {
 
     //initialize mutex semaphores
 
-    sem_init(&mutex1, 0, 1);
-    sem_init(&mutex2, 0, 1);
+    pthread_mutex_init(&mutex1, NULL);
+    pthread_mutex_init(&mutex2, NULL); //error checking
     
-
     //initialize and start threads
 
     pthread_t udp, tcp;
@@ -144,23 +144,35 @@ void *tcp_thread(void* sock) {
     
     printf("Waiting for incoming connections...\n");
 
-    socklen_t addrLen; = sizeof(client);
+    socklen_t addrlen = sizeof(client);
 
     client_sock = accept(tcp_sock, (struct sockaddr *) &client, (socklen_t *) &addrlen);
 
-    sem_wait(&mutex1);
-    sem_post(&mutex1);
+    printf("Connection received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
+
+    pthread_mutex_lock(&mutex1);
+    pthread_mutex_unlock(&mutex1);
 
     while (!done) {
-        sem_wait(&mutex2);
+        while(attempting_send) {
+            sleep(.5);
+        }
+
+        pthread_mutex_lock(&mutex2);
+        printf("\nBlocking mutex2 in TCP thread\n");
 
         bool all_sent = true; //just to ensure same data type of transferral
 
-        send(client_sock, all_sent, sizeof(bool), 0);
+        printf("Sending all_sent message to client\n");
+        send(client_sock, &all_sent, sizeof(bool), 0);
 
+
+        printf("Attempting receive of ack array from client\n");
         recv(client_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
-        
-        sem_post(&mutex2);
+        printf("ack array received from client\n");
+
+        pthread_mutex_unlock(&mutex2);
+        printf("Mutex2 freed in TCP thread\n");
     }
 }
 
@@ -169,9 +181,9 @@ void *udp_thread(void* sock) {
 
     struct sockaddr_in client;
     
-    sem_wait(&mutex1);
+    pthread_mutex_lock(&mutex1);
 
-    printf("Entering critical area, blocking mutex1");
+    printf("Entering critical area, blocking mutex1\n");
 
     socklen_t addrLen;
     int udp_sock = (int) (intptr_t) sock;
@@ -181,12 +193,14 @@ void *udp_thread(void* sock) {
 
     addrLen = sizeof(client);
 
+    attempting_send = true;
+
     if (recvfrom(udp_sock, temp, sizeof(temp), 0, (struct sockaddr *) &client, &addrLen) < 0) { //receive initialization message from client
         printf("Error receiving message from client");
         exit(1);
     }
 
-    printf("Initialization message received from %s at %d port \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
+    printf("Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
     // create array of integers to send
 
@@ -195,11 +209,19 @@ void *udp_thread(void* sock) {
     for (int i = 0; i < ARR_SIZE; i++) {
         arr[i] = i;
     }
+
+    memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
     
-    sem_post(&mutex1);
+    pthread_mutex_unlock(&mutex1);
+
+    printf("Mutex1 freed from UDP thread\n");
 
     while(!done) {
-        sem_wait(&mutex2);
+        pthread_mutex_lock(&mutex2);
+        
+        printf("\nBlocking mutex2 in UDP thread\n");
+
+        attempting_send = false;
         printf("Sending data to client...\n");
 
         bool done_sending = true;
@@ -220,6 +242,14 @@ void *udp_thread(void* sock) {
                 perror("A message was not sent correctly");\
             }
         }
-        sem_post(&mutex2);
+
+        if (done_sending) {
+            done = true;
+        }
+        attempting_send = true;
+
+        pthread_mutex_unlock(&mutex2);
+
+        printf("Mutex2 freed in UDP thread\n");
     }
 }

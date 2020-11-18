@@ -33,9 +33,9 @@ struct sockaddr_in server;
 sem_t mutex1;
 sem_t mutex2; //figure out naming
 
-bool all_sent, done;
+bool all_sent, done = false;
 
-int ack[ARR_SIZE]
+int ack[ARR_SIZE];
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -101,31 +101,31 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    printf("Binding TCP socket...\n");
+    // printf("Binding TCP socket...\n");
 
-    j = 1;
+    // j = 1;
 
-    while (bind(tcp_sock, (struct sockaddr *) &client, sizeof(client)) < 0) {
-        if (j == 1) {
-            perror("Error: Bind failed");
-        }
-        else {
-            char* temp = "Attempt";
-            char* m_b = malloc(strlen(temp) + 8);
+    // while (bind(tcp_sock, (struct sockaddr *) &client, sizeof(client)) < 0) {
+    //     if (j == 1) {
+    //         perror("Error: Bind failed");
+    //     }
+    //     else {
+    //         char* temp = "Attempt";
+    //         char* m_b = malloc(strlen(temp) + 8);
 
-            sprintf(m_b, "%s #%d", temp, j);
+    //         sprintf(m_b, "%s #%d", temp, j);
             
-            perror(m_b);
-        }
-        sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
+    //         perror(m_b);
+    //     }
+    //     sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
 
-        if (j >= NUM_BIND_TRIES) {
-            exit(0);
-        }
-        j+=1;
-    }
+    //     if (j >= NUM_BIND_TRIES) {
+    //         exit(0);
+    //     }
+    //     j+=1;
+    // }
 
-    printf("TCP Bind completed\n");
+    // printf("TCP Bind completed\n");
     
     //initialize mutex semaphores
 
@@ -141,8 +141,6 @@ int main(int argc, char *argv[]) {
     if(rc) {
         perror("UDP failed to start\n");
     }
-
-    sleep(1);
 
     rc = pthread_create(&tcp, NULL, tcp_thread, (void*) (intptr_t) tcp_sock);
 
@@ -161,10 +159,17 @@ void *tcp_thread(void* sock) {
     
     int x = connect(tcp_sock, (struct sockaddr *) &server, sizeof(server));
 
+    printf("Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
+
     while(!done) {
+        printf("Attempting receive of all_sent message\n");
         if ((recv(tcp_sock, &all_sent, sizeof(bool), 0)) < 0) {
             printf("Error receiving message from server");
         }
+
+        printf("All_sent message received\n");
+
+        printf("Sending back acknowledgement array\n");
 
         send(tcp_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
     }
@@ -174,11 +179,10 @@ void *udp_thread(void* sock) {
     printf("Start UDP thread\n");
     int udp_sock = (int) (intptr_t) sock;
 
-    printf("Entering critical area, blocking mutex1");
+    socklen_t slen = sizeof(server);  //initialize sock address len
+    char buf[12];
 
     printf("Sending initialization message to server...\n");
-
-    socklen_t slen = sizeof(server);  //initialize sock address len
 
     if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
         printf("Error sending message to server");
@@ -195,7 +199,8 @@ void *udp_thread(void* sock) {
 
     int index = 0, received = 0;
 
-    struct msg m_msg;
+    struct msg m_msg, prev_msg;
+    prev_msg.chunkNum = -1;
 
     printf("Receiving messages from server\n");
 
@@ -203,12 +208,11 @@ void *udp_thread(void* sock) {
         while(1) {
             slen = sizeof(struct sockaddr_in);
 
-            int recv_size;
-            if(recv_size = (recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
-                printf("Error receiving message from server");
-                exit(1);
-            }
+            recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen);
 
+            if(prev_msg.chunkNum == m_msg.chunkNum) {
+                continue;
+            }
             index = m_msg.chunkNum;
             
             recv_arr[index] = m_msg.val;
@@ -217,6 +221,8 @@ void *udp_thread(void* sock) {
             if(all_sent) {
                 break;
             }
+
+            prev_msg = m_msg;
         }
         bool all_received = true;
         for (int i=0; i < sizeof(ack); i++) {
