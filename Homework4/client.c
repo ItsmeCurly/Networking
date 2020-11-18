@@ -8,7 +8,8 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <pthread.h> 
-#include <semaphore.h> 
+#include <semaphore.h>
+#include <stdbool.h>
 
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
@@ -17,6 +18,7 @@
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
+#define ARR_SIZE 10000
 
 void *tcp_thread(void *ptr);
 void *udp_thread(void *ptr);
@@ -30,6 +32,10 @@ struct sockaddr_in server;
 
 sem_t mutex1;
 sem_t mutex2; //figure out naming
+
+bool all_sent, done;
+
+int ack[ARR_SIZE]
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -147,70 +153,80 @@ int main(int argc, char *argv[]) {
     pthread_exit(NULL);
 }
 
-void *tcp_thread(void* ptr) {
+void *tcp_thread(void* sock) {
     printf("Start TCP thread\n");
+    int tcp_sock = (int) (intptr_t) sock;
 
-    sem_wait(&mutex1);
-    sem_post(&mutex1);
+    printf("Client connecting...\n");
+    
+    int x = connect(tcp_sock, (struct sockaddr *) &server, sizeof(server));
 
-    printf("Should not reach here until thread is done sending?");
+    while(!done) {
+        if ((recv(tcp_sock, &all_sent, sizeof(bool), 0)) < 0) {
+            printf("Error receiving message from server");
+        }
+
+        send(tcp_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
+    }
 }
 
 void *udp_thread(void* sock) {
     printf("Start UDP thread\n");
-    
-    // sem_wait(&mutex1);
+    int udp_sock = (int) (intptr_t) sock;
 
-    // printf("Entering critical area, blocking mutex1");
+    printf("Entering critical area, blocking mutex1");
 
-    // printf("Sending initialization message to server...\n");
+    printf("Sending initialization message to server...\n");
 
-    // socklen_t slen = sizeof(server);  //initialize sock address len
+    socklen_t slen = sizeof(server);  //initialize sock address len
 
-    // if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
-    //     printf("Error sending message to server");
-    //     exit(1);
-    // }
+    if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
+        printf("Error sending message to server");
+        exit(1);
+    }
 
-    // printf("Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
+    printf("Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-    // //declare recv_arr and ack array
+    //declare recv_arr and ack array
 
-    // #define ARR_SIZE 10000
+    int recv_arr[ARR_SIZE];
+    memset(recv_arr, -1, ARR_SIZE * sizeof(recv_arr[0]));
+    memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
 
-    // int recv_arr[ARR_SIZE];
-    // memset(recv_arr, -1, ARR_SIZE * sizeof(recv_arr[0]));
+    int index = 0, received = 0;
 
-    // int ack[ARR_SIZE];
-    // memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
+    struct msg m_msg;
 
-    // int index = 0, received = 0;
+    printf("Receiving messages from server\n");
 
-    // struct msg m_msg;
+    while(!done) {
+        while(1) {
+            slen = sizeof(struct sockaddr_in);
 
-    // printf("Receiving messages from server\n");
+            int recv_size;
+            if(recv_size = (recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
+                printf("Error receiving message from server");
+                exit(1);
+            }
 
-    // while(1) {
-    //     slen = sizeof(struct sockaddr_in);
+            index = m_msg.chunkNum;
+            
+            recv_arr[index] = m_msg.val;
+            ack[index] = 1;
 
-    //     int recv_size;
-    //     if(recv_size = (recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
-    //         printf("Error receiving message from server");
-    //         exit(1);
-    //     }
+            if(all_sent) {
+                break;
+            }
+        }
+        bool all_received = true;
+        for (int i=0; i < sizeof(ack); i++) {
+            if (!ack[i]) {
+                all_received = false;
+            }
+        }
 
-    //     index = m_msg.chunkNum;
-        
-    //     recv_arr[index] = m_msg.val;
-    //     ack[index] = 1;
-
-    //     received += 1;
-
-    //     if (received >= 3000) {
-    //         printf("Received 3000 messages, breaking\n");
-    //         break;
-    //     }
-    // }
-
-    // sem_post(&mutex1);
+        if (all_received) {
+            done = true;
+        }
+    }
 }

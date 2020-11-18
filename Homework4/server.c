@@ -12,6 +12,7 @@
 #define server_IP "10.0.2.15"
 #define server_PORT 45022
 #define NUM_BIND_TRIES 5
+#define ARR_SIZE 10000
 
 char* concat(const char*, const char*);
 void *tcp_thread(void *ptr);
@@ -22,10 +23,12 @@ struct msg {
     int val;
 };
 
-struct sockaddr_in client;
-
 sem_t mutex1;
 sem_t mutex2; //figure out naming
+
+int ack[ARR_SIZE];
+
+bool done = false;
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -129,17 +132,42 @@ int main(int argc, char *argv[]) {
 
 
 
-void *tcp_thread(void* ptr) {
+void *tcp_thread(void* sock) {
     printf("Start TCP thread\n");
+
+    struct sockaddr_in client;
+
+    int tcp_sock = (int) (intptr_t) sock;
+    int client_sock = socket(AF_INET, SOCK_STREAM, 0);
+
+    listen(tcp_sock, 1);
+    
+    printf("Waiting for incoming connections...\n");
+
+    socklen_t addrLen; = sizeof(client);
+
+    client_sock = accept(tcp_sock, (struct sockaddr *) &client, (socklen_t *) &addrlen);
 
     sem_wait(&mutex1);
     sem_post(&mutex1);
 
-    printf("Should not reach here until thread is done sending?");
+    while (!done) {
+        sem_wait(&mutex2);
+
+        bool all_sent = true; //just to ensure same data type of transferral
+
+        send(client_sock, all_sent, sizeof(bool), 0);
+
+        recv(client_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
+        
+        sem_post(&mutex2);
+    }
 }
 
 void *udp_thread(void* sock) {
     printf("Start UDP thread\n");
+
+    struct sockaddr_in client;
     
     sem_wait(&mutex1);
 
@@ -162,26 +190,36 @@ void *udp_thread(void* sock) {
 
     // create array of integers to send
 
-    #define ARR_SIZE 10000
-
     int arr[ARR_SIZE];
 
     for (int i = 0; i < ARR_SIZE; i++) {
         arr[i] = i;
     }
-
-    printf("Sending data to client...\n");
-
-    for (int i = 0; i < ARR_SIZE; i++) {
-        struct msg m_msg;
-        
-        m_msg.chunkNum = i;
-        m_msg.val = arr[i];
-        
-        if (sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen) < 0) {
-            perror("A message was not sent correctly");\
-        }
-    }
-
+    
     sem_post(&mutex1);
+
+    while(!done) {
+        sem_wait(&mutex2);
+        printf("Sending data to client...\n");
+
+        bool done_sending = true;
+
+        for (int i = 0; i < ARR_SIZE; i++) {
+            if(!ack[i]) {
+                done_sending = false; //continue into loop body to send
+            } else {
+                continue;
+            }
+
+            struct msg m_msg;
+            
+            m_msg.chunkNum = i;
+            m_msg.val = arr[i];
+            
+            if (sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen) < 0) {
+                perror("A message was not sent correctly");\
+            }
+        }
+        sem_post(&mutex2);
+    }
 }
