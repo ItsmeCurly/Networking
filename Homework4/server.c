@@ -9,7 +9,7 @@
 #include <pthread.h> 
 #include <semaphore.h> 
 
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
 #define server_TCP_PORT 45022
 #define server_UDP_PORT 45023
 #define NUM_BIND_TRIES 5
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     }
 
     udp_server.sin_family = AF_INET;
-    udp_server.sin_port = htons(s_UDP_PORT);
+    udp_server.sin_port = htons(server_UDP_PORT);
     udp_server.sin_addr.s_addr = INADDR_ANY;
 
     int j = 1;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
         }
         sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
 
-        if (j >= NUM_TRIES) {
+        if (j >= NUM_BIND_TRIES) {
             exit(0);
         }
         j+=1;
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     printf("UDP Bind completed\n");
 
     int tcp_sock;
-    socklen_t addrLen;
+    //socklen_t addrLen;
     struct sockaddr_in tcp_server;
 
     if((tcp_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -77,10 +77,10 @@ int main(int argc, char *argv[]) {
     }
 
     tcp_server.sin_family = AF_INET;
-    tcp_server.sin_port = htons(s_TCP_PORT);
-    inet_pton(AF_INET, s_IP, &(tcp_server.sin_addr));
+    tcp_server.sin_port = htons(server_TCP_PORT);
+    inet_pton(AF_INET, server_IP, &(tcp_server.sin_addr));
     
-    int j = 1;
+    j = 1;
 
     printf("Binding TCP socket...\n");
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
         }
         sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
 
-        if (j >= NUM_TRIES) {
+        if (j >= NUM_BIND_TRIES) {
             exit(0);
         }
         j+=1;
@@ -109,17 +109,34 @@ int main(int argc, char *argv[]) {
     //start threads
 
     pthread_t udp, tcp;
-    udp = pthread_create(&udp, NULL, udp_thread, (void*) udp_sock);
-    tcp = pthread_create(&tcp, NULL, tcp_thread, (void*) tcp_sock);
+    int rc;
+    rc = pthread_create(&udp, NULL, udp_thread, (void*) (intptr_t) udp_sock);
+
+    if(rc) {
+        perror("UDP failed to start\n");
+    }
+
+    sleep(1);
+
+    rc = pthread_create(&tcp, NULL, tcp_thread, (void*) (intptr_t) tcp_sock);
+
+    if(rc) {
+        perror("TCP failed to start\n");
+    }
+
+    pthread_exit(NULL);
 }
 
 
 
 void *tcp_thread(void* ptr) {
-    
+    printf("Start TCP thread\n");
 }
 
-void *udp_thread(void* ptr) {
+void *udp_thread(void* sock) {
+    printf("Start UDP thread\n");
+    socklen_t addrLen;
+    int udp_sock = (int) (intptr_t) sock;
     printf("Waiting for response...\n");
 
     char temp[12];
