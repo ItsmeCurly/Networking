@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     }
 
     server.sin_family = AF_INET;
-    server.sin_port = htons(s_PORT);
+    server.sin_port = htons(server_PORT);
     server.sin_addr.s_addr = INADDR_ANY;
     //inet_pton(AF_INET, s_IP, &(server.sin_addr));
 

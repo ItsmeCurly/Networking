@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
     printf("Bind completed\n");
     
     server.sin_family = AF_INET;
-    server.sin_port = htons(s_PORT);
-    inet_pton(AF_INET, s_IP, &(server.sin_addr)); //server ip
+    server.sin_port = htons(server_PORT);
+    inet_pton(AF_INET, server_IP, &(server.sin_addr)); //server ip
 
     printf("Sending initialization message to server...\n");
 

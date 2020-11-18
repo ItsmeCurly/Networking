@@ -10,8 +10,7 @@
 #include <semaphore.h> 
 
 #define server_IP "10.0.2.15"
-#define server_TCP_PORT 45022
-#define server_UDP_PORT 45023
+#define server_PORT 45022
 #define NUM_BIND_TRIES 5
 
 char* concat(const char*, const char*);
@@ -25,27 +24,28 @@ struct msg {
 
 struct sockaddr_in client;
 
-sem_t mutex;
+sem_t mutex1;
+sem_t mutex2; //figure out naming
 
 int main(int argc, char *argv[]) {
     int udp_sock;
     socklen_t addrLen;
-    struct sockaddr_in udp_server;
+    struct sockaddr_in server;
     
     if((udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
         perror("Error: socket creation failed\n");
         exit(0);
     }
 
-    udp_server.sin_family = AF_INET;
-    udp_server.sin_port = htons(server_UDP_PORT);
-    udp_server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_family = AF_INET;
+    server.sin_port = htons(server_PORT);
+    server.sin_addr.s_addr = INADDR_ANY;
 
     int j = 1;
 
     printf("Binding UDP socket...\n");
 
-    while (bind(udp_sock, (struct sockaddr *) &udp_server, sizeof(udp_server)) < 0) {
+    while (bind(udp_sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
         if (j == 1) {
             perror("Error: Bind failed");
         }
@@ -68,23 +68,17 @@ int main(int argc, char *argv[]) {
     printf("UDP Bind completed\n");
 
     int tcp_sock;
-    //socklen_t addrLen;
-    struct sockaddr_in tcp_server;
 
-    if((tcp_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if((tcp_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         perror("Error: socket creation failed\n");
         exit(0);
     }
-
-    tcp_server.sin_family = AF_INET;
-    tcp_server.sin_port = htons(server_TCP_PORT);
-    inet_pton(AF_INET, server_IP, &(tcp_server.sin_addr));
     
     j = 1;
 
     printf("Binding TCP socket...\n");
 
-    while (bind(tcp_sock, (struct sockaddr *) &tcp_server, sizeof(tcp_server)) < 0) {
+    while (bind(tcp_sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
         if (j == 1) {
             perror("Error: Bind failed");
         }
@@ -106,7 +100,13 @@ int main(int argc, char *argv[]) {
 
     printf("TCP Bind completed\n");
 
-    //start threads
+    //initialize mutex semaphores
+
+    sem_init(&mutex1, 0, 1);
+    sem_init(&mutex2, 0, 1);
+    
+
+    //initialize and start threads
 
     pthread_t udp, tcp;
     int rc;
@@ -131,10 +131,20 @@ int main(int argc, char *argv[]) {
 
 void *tcp_thread(void* ptr) {
     printf("Start TCP thread\n");
+
+    sem_wait(&mutex1);
+    sem_post(&mutex1);
+
+    printf("Should not reach here until thread is done sending?");
 }
 
 void *udp_thread(void* sock) {
     printf("Start UDP thread\n");
+    
+    sem_wait(&mutex1);
+
+    printf("Entering critical area, blocking mutex1");
+
     socklen_t addrLen;
     int udp_sock = (int) (intptr_t) sock;
     printf("Waiting for response...\n");
@@ -173,5 +183,5 @@ void *udp_thread(void* sock) {
         }
     }
 
-    printf("Data sent successfully\n");
+    sem_post(&mutex1);
 }

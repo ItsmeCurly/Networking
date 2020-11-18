@@ -6,39 +6,65 @@
 #include <netdb.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <pthread.h> 
+#include <semaphore.h> 
 
-#define cl_IP "10.0.2.15"
-#define cl_PORT 45023
+#define client_IP "10.0.2.15"
+#define client_PORT 45023
 
-#define s_IP "130.111.46.105"
-#define s_PORT 45022
+#define server_IP "10.0.2.15"
+#define server_PORT 45022
+
+#define NUM_BIND_TRIES 5
+
+void *tcp_thread(void *ptr);
+void *udp_thread(void *ptr);
 
 struct msg {
     int chunkNum;
     int val;
 };
 
-int main(int argc, char *argv[]) {
-    int m_sock;
-    char buf[12];
-    struct sockaddr_in client, server;
-    int num_bytes;
+struct sockaddr_in server;
 
-    if((m_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+sem_t mutex1;
+sem_t mutex2; //figure out naming
+
+int main(int argc, char *argv[]) {
+    int udp_sock, tcp_sock;
+    char buf[12];
+    struct sockaddr_in client;
+    int num_bytes;
+    
+    //setup client sockaddr_in data
+    client.sin_family = AF_INET;
+    client.sin_port = htons(client_PORT);
+    inet_pton(AF_INET, client_IP, &(client.sin_addr));
+
+    //setup server sockaddr_in data
+    server.sin_family = AF_INET;
+    server.sin_port = htons(server_PORT);
+    inet_pton(AF_INET, server_IP, &(server.sin_addr));
+
+    //create and bind UDP socket
+
+    if((udp_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Error: socket creation failed\n");
         exit(0);
     }
 
-    client.sin_family = AF_INET;
-    client.sin_port = htons(cl_PORT);
-    inet_pton(AF_INET, cl_IP, &(client.sin_addr)); //setup client socket
+    //set socket to nonblocking mode
 
-    #define NUM_TRIES 5
+    int flags = fcntl(udp_sock, F_GETFL, 0);
+    fcntl(udp_sock, F_SETFL, flags | O_NONBLOCK);
+    perror("SET NOBLOCK\n");
+
     int j = 1;
 
-    printf("Binding...\n");
+    printf("Binding UDP socket...\n");
 
-    while (bind(m_sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
+    while (bind(udp_sock, (struct sockaddr *) &client, sizeof(client)) < 0) {
         if (j == 1) {
             perror("Error: Bind failed");
         }
@@ -58,17 +84,92 @@ int main(int argc, char *argv[]) {
         j+=1;
     }
 
-    printf("Bind completed\n");
+    printf("UDP Bind completed\n");
+
+    //create and bind tcp socket
+
+    int tcp_sock;
+
+    if((tcp_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        perror("Error: socket creation failed\n");
+        exit(0);
+    }
+
+    printf("Binding TCP socket...\n");
+
+    j = 1;
+
+    while (bind(tcp_sock, (struct sockaddr *) &client, sizeof(client)) < 0) {
+        if (j == 1) {
+            perror("Error: Bind failed");
+        }
+        else {
+            char* temp = "Attempt";
+            char* m_b = malloc(strlen(temp) + 8);
+
+            sprintf(m_b, "%s #%d", temp, j);
+            
+            perror(m_b);
+        }
+        sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
+
+        if (j >= NUM_TRIES) {
+            exit(0);
+        }
+        j+=1;
+    }
+
+    printf("TCP Bind completed\n");
+
+    exit(1);
     
-    server.sin_family = AF_INET;
-    server.sin_port = htons(s_PORT);
-    inet_pton(AF_INET, s_IP, &(server.sin_addr)); //server ip
+    //initialize mutex semaphores
+
+    sem_init(&mutex1, 0, 1);
+    sem_init(&mutex2, 0, 1);
+
+    //initialize and start threads
+
+    pthread_t udp, tcp;
+    int rc;
+    rc = pthread_create(&udp, NULL, udp_thread, (void*) (intptr_t) udp_sock);
+
+    if(rc) {
+        perror("UDP failed to start\n");
+    }
+
+    sleep(1);
+
+    rc = pthread_create(&tcp, NULL, tcp_thread, (void*) (intptr_t) tcp_sock);
+
+    if(rc) {
+        perror("TCP failed to start\n");
+    }
+
+    pthread_exit(NULL);
+}
+
+void *tcp_thread(void* ptr) {
+    printf("Start TCP thread\n");
+
+    sem_wait(&mutex1);
+    sem_post(&mutex1);
+
+    printf("Should not reach here until thread is done sending?");
+}
+
+void *udp_thread(void* sock) {
+    printf("Start UDP thread\n");
+    
+    sem_wait(&mutex1);
+
+    printf("Entering critical area, blocking mutex1");
 
     printf("Sending initialization message to server...\n");
 
     socklen_t slen = sizeof(server);  //initialize sock address len
 
-    if (sendto(m_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
+    if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
         printf("Error sending message to server");
         exit(1);
     }
@@ -95,7 +196,7 @@ int main(int argc, char *argv[]) {
         slen = sizeof(struct sockaddr_in);
 
         int recv_size;
-        if(recv_size = (recvfrom(m_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
+        if(recv_size = (recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen)) < 0){
             printf("Error receiving message from server");
             exit(1);
         }
@@ -113,13 +214,5 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("%d messages received\n", received);
-
-    for (int i = 0; i < ARR_SIZE; i++) {
-        if(recv_arr[i] == -1) {
-            printf("First gap located at position %d\n", i);
-            break;
-        }
-    }
-    close(m_sock);
+    sem_post(&mutex1);
 }
