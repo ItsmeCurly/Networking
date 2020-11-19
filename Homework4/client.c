@@ -30,8 +30,8 @@ struct msg {
 
 struct sockaddr_in server;
 
-sem_t mutex1;
-sem_t mutex2; //figure out naming
+pthread_mutex_t mutex1;
+pthread_mutex_t mutex2; //figure out naming
 
 bool all_sent, done = false;
 
@@ -129,8 +129,8 @@ int main(int argc, char *argv[]) {
     
     //initialize mutex semaphores
 
-    sem_init(&mutex1, 0, 1);
-    sem_init(&mutex2, 0, 1);
+    pthread_mutex_init(&mutex1, NULL);
+    pthread_mutex_init(&mutex2, NULL); //error checking
 
     //initialize and start threads
 
@@ -166,12 +166,20 @@ void *tcp_thread(void* sock) {
         if ((recv(tcp_sock, &all_sent, sizeof(bool), 0)) < 0) {
             printf("Error receiving message from server");
         }
+        
+        pthread_mutex_lock(&mutex1);
 
         printf("All_sent message received\n");
 
         printf("Sending back acknowledgement array\n");
 
         send(tcp_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
+
+        // for (int i=0; i < ARR_SIZE; i++) {
+        //     printf("%d\n", ack[i]);
+        // }
+
+        pthread_mutex_unlock(&mutex1);
     }
 }
 
@@ -213,26 +221,40 @@ void *udp_thread(void* sock) {
             if(prev_msg.chunkNum == m_msg.chunkNum) {
                 continue;
             }
+
+            //printf("%d\n", m_msg.chunkNum);
             index = m_msg.chunkNum;
             
             recv_arr[index] = m_msg.val;
             ack[index] = 1;
 
+            //printf("%d\n", ack[index]);
+
             if(all_sent) {
+                // for (int i=0; i < ARR_SIZE; i++) {
+                //     printf("print %d: %d\n", i, ack[i]);
+                // }
                 break;
             }
 
             prev_msg = m_msg;
         }
+        pthread_mutex_lock(&mutex1);
         bool all_received = true;
-        for (int i=0; i < sizeof(ack); i++) {
+        for (int i=0; i < ARR_SIZE; i++) {
+            //printf("%d\n", i);
             if (!ack[i]) {
                 all_received = false;
             }
         }
 
         if (all_received) {
+            // for (int i=0; i < ARR_SIZE; i++) {
+            //     printf("%d\n", i);
+            // }
             done = true;
+            printf("All done\n");
         }
+        pthread_mutex_unlock(&mutex1);
     }
 }

@@ -239,7 +239,7 @@ void *udp_thread(void* sock) {
             m_msg.val = arr[i];
             
             if (sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen) < 0) {
-                perror("A message was not sent correctly");\
+                perror("A message was not sent correctly");
             }
         }
 
