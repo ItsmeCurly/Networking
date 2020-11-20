@@ -14,7 +14,7 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "10.0.2.15"
+#define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -101,31 +101,7 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    // printf("Binding TCP socket...\n");
-
-    // j = 1;
-
-    // while (bind(tcp_sock, (struct sockaddr *) &client, sizeof(client)) < 0) {
-    //     if (j == 1) {
-    //         perror("Error: Bind failed");
-    //     }
-    //     else {
-    //         char* temp = "Attempt";
-    //         char* m_b = malloc(strlen(temp) + 8);
-
-    //         sprintf(m_b, "%s #%d", temp, j);
-            
-    //         perror(m_b);
-    //     }
-    //     sleep(2);   //attempt to bind sometimes fails, set it so that it waits 2 seconds after every failed bind, up to 5 attempts
-
-    //     if (j >= NUM_BIND_TRIES) {
-    //         exit(0);
-    //     }
-    //     j+=1;
-    // }
-
-    // printf("TCP Bind completed\n");
+    //pretty sure you don't need to bind a TCP socket
     
     //initialize mutex semaphores
 
@@ -164,19 +140,18 @@ void *tcp_thread(void* sock) {
         printf("TCP: Waiting on all_sent message\n");
         recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
         
-        // pthread_mutex_lock(&mutex1);
+        // pthread_mutex_lock(&mutex1); //found that not locking the threads also works
 
-        printf("TCP: Mutex1 locked\n");
+        // printf("TCP: Mutex1 locked\n");
         
         printf("TCP: All_sent message received\n");
         
         printf("TCP: Sending back acknowledgement array\n");
         
-        int eval = send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
-        printf("%d\n", eval);
+        int eval = send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0); 
 
-        printf("TCP: Mutex1 unlocked\n");
-        // pthread_mutex_unlock(&mutex1);
+        // printf("TCP: Mutex1 unlocked\n");
+        // pthread_mutex_unlock(&mutex1);   
 
         // sleep(.01);
     }
@@ -206,12 +181,11 @@ void *udp_thread(void* sock) {
 
     int index = 0, received = 0, attempts = 0;
 
-    struct msg m_msg, prev_msg;
-    prev_msg.chunkNum = -1;
-
-    printf("UDP: Receiving messages from server\n");
+    struct msg m_msg, prev_msg; //use prev_msg in case messages are sent before values are assigned
+    prev_msg.chunkNum = -1;     //if the previous value discovered is sent, then just ignore
 
     while(1) {
+        printf("UDP: Begin receive loop\n");
         while(1) {
             slen = sizeof(struct sockaddr_in);
 
@@ -227,6 +201,7 @@ void *udp_thread(void* sock) {
             ack[index] = 1;
 
             if(all_sent) {
+                printf("UDP: End receive loop\n");
                 all_sent = false;
                 attempts+=1;
                 
@@ -236,7 +211,7 @@ void *udp_thread(void* sock) {
             prev_msg = m_msg;
         }
         // pthread_mutex_lock(&mutex1);
-        printf("UDP: Mutex1 locked\n");
+        // printf("UDP: Mutex1 locked\n");
 
         bool all_received = true;
 
@@ -257,7 +232,7 @@ void *udp_thread(void* sock) {
             exit(1);
         }
 
-        printf("UDP: Mutex1 unlocked\n");
+        // printf("UDP: Mutex1 unlocked\n");
         // pthread_mutex_unlock(&mutex1);
     }
 }
