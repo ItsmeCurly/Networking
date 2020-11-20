@@ -14,7 +14,7 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -130,7 +130,6 @@ int main(int argc, char *argv[]) {
     //initialize mutex semaphores
 
     pthread_mutex_init(&mutex1, NULL);
-    pthread_mutex_init(&mutex2, NULL); //error checking
 
     //initialize and start threads
 
@@ -162,20 +161,24 @@ void *tcp_thread(void* sock) {
     printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     while(!done) {
-        printf("TCP: Attempting receive of all_sent message\n");
-        if ((recv(tcp_sock, &all_sent, sizeof(bool), 0)) < 0) {
-            printf("TCP: Error receiving message from server");
-        }
+        printf("TCP: Waiting on all_sent message\n");
+        recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
         
-        pthread_mutex_lock(&mutex1);
+        // pthread_mutex_lock(&mutex1);
 
+        printf("TCP: Mutex1 locked\n");
+        
         printf("TCP: All_sent message received\n");
-
+        
         printf("TCP: Sending back acknowledgement array\n");
+        
+        int eval = send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
+        printf("%d\n", eval);
 
-        send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
+        printf("TCP: Mutex1 unlocked\n");
+        // pthread_mutex_unlock(&mutex1);
 
-        pthread_mutex_unlock(&mutex1);
+        // sleep(.01);
     }
 }
 
@@ -208,11 +211,7 @@ void *udp_thread(void* sock) {
 
     printf("UDP: Receiving messages from server\n");
 
-    while(!done) {
-        int new_values[10000];
-        memset(new_values, -1, ARR_SIZE * sizeof(new_values[0]));
-
-        int new_val_index = 0;
+    while(1) {
         while(1) {
             slen = sizeof(struct sockaddr_in);
 
@@ -227,27 +226,20 @@ void *udp_thread(void* sock) {
             recv_arr[index] = m_msg.val;
             ack[index] = 1;
 
-            new_values[new_val_index] = m_msg.val;
-            new_val_index += 1;
-
             if(all_sent) {
                 all_sent = false;
                 attempts+=1;
-                printf("New values:");
-
-                for (int i = 0; i < ARR_SIZE; i++) {
-                    if(new_values[i] != -1) {
-                        printf(" %d", new_values[i]);
-                    }
-                }
-                printf("\n");
+                
                 break;
             }
 
             prev_msg = m_msg;
         }
-        pthread_mutex_lock(&mutex1);
+        // pthread_mutex_lock(&mutex1);
+        printf("UDP: Mutex1 locked\n");
+
         bool all_received = true;
+
         for (int i=0; i < ARR_SIZE; i++) {
             if (!ack[i]) {
                 all_received = false;
@@ -257,8 +249,15 @@ void *udp_thread(void* sock) {
         if (all_received) {
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
+            fflush(stdout);
+
+            pthread_mutex_unlock(&mutex1);
+            pthread_mutex_destroy(&mutex1);
+
+            exit(1);
         }
 
-        pthread_mutex_unlock(&mutex1);
+        printf("UDP: Mutex1 unlocked\n");
+        // pthread_mutex_unlock(&mutex1);
     }
 }

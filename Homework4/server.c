@@ -10,7 +10,7 @@
 #include <semaphore.h> 
 #include <stdbool.h>
 
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15" //130.111.46.105
 #define server_PORT 45022
 #define NUM_BIND_TRIES 5
 #define ARR_SIZE 10000
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
         perror("UDP failed to start\n");
     }
 
-    sleep(1);
+    sleep(.1);
 
     rc = pthread_create(&tcp, NULL, tcp_thread, (void*) (intptr_t) tcp_sock);
 
@@ -156,7 +156,7 @@ void *tcp_thread(void* sock) {
     while (!done) {
         if (all_sent) {
             pthread_mutex_lock(&mutex2);
-            printf("TCP: Blocking mutex2 in TCP thread\n");
+            printf("TCP: Mutex2 locked\n");
 
             printf("TCP: Sending all_sent message to client\n");
             send(client_sock, &all_sent, sizeof(bool), 0);
@@ -164,11 +164,14 @@ void *tcp_thread(void* sock) {
             all_sent = false;
 
             printf("TCP: Attempting receive of ack array from client\n");
-            recv(client_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
+
+            int eval = recv(client_sock, ack, ARR_SIZE * sizeof(ack[0]), MSG_WAITALL);
+            printf("Ack array size: %d\n", eval);
+
             printf("TCP: Ack array received from client\n");
 
+            printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
-            printf("TCP: Mutex2 freed in TCP thread\n");
         }
     }
 }
@@ -211,18 +214,18 @@ void *udp_thread(void* sock) {
 
     printf("UDP: Mutex1 freed from UDP thread\n");
     
-    while(!done) {
+    while(1) {
         pthread_mutex_lock(&mutex2);
         
         printf("UDP: Blocking mutex2 in UDP thread\n");
         
         printf("UDP: Sending data to client...\n");
 
-        bool done_sending = true;
+        bool all_received = true;
 
         for (int i = 0; i < ARR_SIZE; i++) {
             if(!ack[i]) {
-                done_sending = false; //continue into loop body to send
+                all_received = false; //continue into loop body to send
             } else {
                 continue;
             }
@@ -236,15 +239,24 @@ void *udp_thread(void* sock) {
                 perror("UDP: A message was not sent correctly");
             }
         }
-
         all_sent = true;
 
-        if (done_sending) {
+        if (all_received) {
+            printf("Transferral: All done\n");
             done = true;
+            pthread_mutex_unlock(&mutex2);
+
+            pthread_mutex_destroy(&mutex1);
+            pthread_mutex_destroy(&mutex2);
+
+            sleep(1);
+            
+            exit(1);
         }
 
+        printf("UDP: Mutex2 freed in UDP thread\n");
         pthread_mutex_unlock(&mutex2);
 
-        printf("UDP: Mutex2 freed in UDP thread\n");
+        sleep(.001);
     }
 }
