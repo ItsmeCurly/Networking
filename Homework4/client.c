@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
 
     //pretty sure you don't need to bind a TCP socket
     
-    //initialize mutex semaphores
+    //initialize mutexes
 
     pthread_mutex_init(&mutex1, NULL);
 

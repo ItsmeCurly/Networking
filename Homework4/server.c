@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
 
     printf("TCP Bind completed\n");
 
-    //initialize mutex semaphores
+    //initialize mutexes
 
     pthread_mutex_init(&mutex1, NULL);
     pthread_mutex_init(&mutex2, NULL); //error checking
