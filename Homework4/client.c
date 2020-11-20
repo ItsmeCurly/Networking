@@ -33,7 +33,7 @@ struct sockaddr_in server;
 pthread_mutex_t mutex1;
 pthread_mutex_t mutex2; //figure out naming
 
-bool all_sent, done = false;
+bool all_sent = false, done = false;
 
 int ack[ARR_SIZE];
 
@@ -173,7 +173,7 @@ void *tcp_thread(void* sock) {
 
         printf("TCP: Sending back acknowledgement array\n");
 
-        send(tcp_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
+        send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
 
         pthread_mutex_unlock(&mutex1);
     }
@@ -209,6 +209,10 @@ void *udp_thread(void* sock) {
     printf("UDP: Receiving messages from server\n");
 
     while(!done) {
+        int new_values[10000];
+        memset(new_values, -1, ARR_SIZE * sizeof(new_values[0]));
+
+        int new_val_index = 0;
         while(1) {
             slen = sizeof(struct sockaddr_in);
 
@@ -223,7 +227,20 @@ void *udp_thread(void* sock) {
             recv_arr[index] = m_msg.val;
             ack[index] = 1;
 
+            new_values[new_val_index] = m_msg.val;
+            new_val_index += 1;
+
             if(all_sent) {
+                all_sent = false;
+                attempts+=1;
+                printf("New values:");
+
+                for (int i = 0; i < ARR_SIZE; i++) {
+                    if(new_values[i] != -1) {
+                        printf(" %d", new_values[i]);
+                    }
+                }
+                printf("\n");
                 break;
             }
 
@@ -240,8 +257,6 @@ void *udp_thread(void* sock) {
         if (all_received) {
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
-        } else {
-            attempts += 1;
         }
 
         pthread_mutex_unlock(&mutex1);

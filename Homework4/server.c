@@ -29,7 +29,7 @@ pthread_mutex_t mutex2; //figure out naming
 
 int ack[ARR_SIZE];
 
-bool done = false, attempting_send = false;
+bool done = false, all_sent = false;
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -154,25 +154,22 @@ void *tcp_thread(void* sock) {
     pthread_mutex_unlock(&mutex1);
 
     while (!done) {
-        while(attempting_send) {
-            sleep(.5);
+        if (all_sent) {
+            pthread_mutex_lock(&mutex2);
+            printf("TCP: Blocking mutex2 in TCP thread\n");
+
+            printf("TCP: Sending all_sent message to client\n");
+            send(client_sock, &all_sent, sizeof(bool), 0);
+
+            all_sent = false;
+
+            printf("TCP: Attempting receive of ack array from client\n");
+            recv(client_sock, ack, ARR_SIZE * sizeof(ack[0]), 0);
+            printf("TCP: Ack array received from client\n");
+
+            pthread_mutex_unlock(&mutex2);
+            printf("TCP: Mutex2 freed in TCP thread\n");
         }
-
-        pthread_mutex_lock(&mutex2);
-        printf("TCP: Blocking mutex2 in TCP thread\n");
-
-        bool all_sent = true; //just to ensure same data type of transferral
-
-        printf("TCP: Sending all_sent message to client\n");
-        send(client_sock, &all_sent, sizeof(bool), 0);
-
-
-        printf("TCP: Attempting receive of ack array from client\n");
-        recv(client_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
-        printf("TCP: Ack array received from client\n");
-
-        pthread_mutex_unlock(&mutex2);
-        printf("TCP: Mutex2 freed in TCP thread\n");
     }
 }
 
@@ -192,8 +189,6 @@ void *udp_thread(void* sock) {
     char temp[12];
 
     addrLen = sizeof(client);
-
-    attempting_send = true;
 
     if (recvfrom(udp_sock, temp, sizeof(temp), 0, (struct sockaddr *) &client, &addrLen) < 0) { //receive initialization message from client
         printf("UDP: Error receiving message from client");
@@ -220,8 +215,7 @@ void *udp_thread(void* sock) {
         pthread_mutex_lock(&mutex2);
         
         printf("UDP: Blocking mutex2 in UDP thread\n");
-
-        attempting_send = false;
+        
         printf("UDP: Sending data to client...\n");
 
         bool done_sending = true;
@@ -243,10 +237,11 @@ void *udp_thread(void* sock) {
             }
         }
 
+        all_sent = true;
+
         if (done_sending) {
             done = true;
         }
-        attempting_send = true;
 
         pthread_mutex_unlock(&mutex2);
 
