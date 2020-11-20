@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 
 
 void *tcp_thread(void* sock) {
-    printf("Start TCP thread\n");
+    printf("TCP: Start thread\n");
 
     struct sockaddr_in client;
 
@@ -142,13 +142,13 @@ void *tcp_thread(void* sock) {
 
     listen(tcp_sock, 1);
     
-    printf("Waiting for incoming connections...\n");
+    printf("TCP: Waiting for incoming connections...\n");
 
     socklen_t addrlen = sizeof(client);
 
     client_sock = accept(tcp_sock, (struct sockaddr *) &client, (socklen_t *) &addrlen);
 
-    printf("Connection received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
+    printf("TCP: Connection received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
     pthread_mutex_lock(&mutex1);
     pthread_mutex_unlock(&mutex1);
@@ -159,35 +159,35 @@ void *tcp_thread(void* sock) {
         }
 
         pthread_mutex_lock(&mutex2);
-        printf("\nBlocking mutex2 in TCP thread\n");
+        printf("TCP: Blocking mutex2 in TCP thread\n");
 
         bool all_sent = true; //just to ensure same data type of transferral
 
-        printf("Sending all_sent message to client\n");
+        printf("TCP: Sending all_sent message to client\n");
         send(client_sock, &all_sent, sizeof(bool), 0);
 
 
-        printf("Attempting receive of ack array from client\n");
+        printf("TCP: Attempting receive of ack array from client\n");
         recv(client_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
-        printf("ack array received from client\n");
+        printf("TCP: Ack array received from client\n");
 
         pthread_mutex_unlock(&mutex2);
-        printf("Mutex2 freed in TCP thread\n");
+        printf("TCP: Mutex2 freed in TCP thread\n");
     }
 }
 
 void *udp_thread(void* sock) {
-    printf("Start UDP thread\n");
+    printf("UDP: Start thread\n");
 
     struct sockaddr_in client;
     
     pthread_mutex_lock(&mutex1);
 
-    printf("Entering critical area, blocking mutex1\n");
+    printf("UDP: Blocking mutex1\n");
 
     socklen_t addrLen;
     int udp_sock = (int) (intptr_t) sock;
-    printf("Waiting for response...\n");
+    printf("UDP: Waiting for response...\n");
 
     char temp[12];
 
@@ -196,11 +196,11 @@ void *udp_thread(void* sock) {
     attempting_send = true;
 
     if (recvfrom(udp_sock, temp, sizeof(temp), 0, (struct sockaddr *) &client, &addrLen) < 0) { //receive initialization message from client
-        printf("Error receiving message from client");
+        printf("UDP: Error receiving message from client");
         exit(1);
     }
 
-    printf("Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
+    printf("UDP: Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
     // create array of integers to send
 
@@ -214,15 +214,15 @@ void *udp_thread(void* sock) {
     
     pthread_mutex_unlock(&mutex1);
 
-    printf("Mutex1 freed from UDP thread\n");
-
+    printf("UDP: Mutex1 freed from UDP thread\n");
+    
     while(!done) {
         pthread_mutex_lock(&mutex2);
         
-        printf("\nBlocking mutex2 in UDP thread\n");
+        printf("UDP: Blocking mutex2 in UDP thread\n");
 
         attempting_send = false;
-        printf("Sending data to client...\n");
+        printf("UDP: Sending data to client...\n");
 
         bool done_sending = true;
 
@@ -239,7 +239,7 @@ void *udp_thread(void* sock) {
             m_msg.val = arr[i];
             
             if (sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen) < 0) {
-                perror("A message was not sent correctly");
+                perror("UDP: A message was not sent correctly");
             }
         }
 
@@ -250,6 +250,6 @@ void *udp_thread(void* sock) {
 
         pthread_mutex_unlock(&mutex2);
 
-        printf("Mutex2 freed in UDP thread\n");
+        printf("UDP: Mutex2 freed in UDP thread\n");
     }
 }

@@ -152,52 +152,48 @@ int main(int argc, char *argv[]) {
 }
 
 void *tcp_thread(void* sock) {
-    printf("Start TCP thread\n");
+    printf("TCP: Start thread\n");
     int tcp_sock = (int) (intptr_t) sock;
 
-    printf("Client connecting...\n");
+    printf("TCP: Client connecting...\n");
     
     int x = connect(tcp_sock, (struct sockaddr *) &server, sizeof(server));
 
-    printf("Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
+    printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     while(!done) {
-        printf("Attempting receive of all_sent message\n");
+        printf("TCP: Attempting receive of all_sent message\n");
         if ((recv(tcp_sock, &all_sent, sizeof(bool), 0)) < 0) {
-            printf("Error receiving message from server");
+            printf("TCP: Error receiving message from server");
         }
         
         pthread_mutex_lock(&mutex1);
 
-        printf("All_sent message received\n");
+        printf("TCP: All_sent message received\n");
 
-        printf("Sending back acknowledgement array\n");
+        printf("TCP: Sending back acknowledgement array\n");
 
         send(tcp_sock, ack, sizeof(ack) * sizeof(ack[0]), 0);
-
-        // for (int i=0; i < ARR_SIZE; i++) {
-        //     printf("%d\n", ack[i]);
-        // }
 
         pthread_mutex_unlock(&mutex1);
     }
 }
 
 void *udp_thread(void* sock) {
-    printf("Start UDP thread\n");
+    printf("UDP: Start thread\n");
     int udp_sock = (int) (intptr_t) sock;
 
     socklen_t slen = sizeof(server);  //initialize sock address len
     char buf[12];
 
-    printf("Sending initialization message to server...\n");
+    printf("UDP: Sending initialization message to server...\n");
 
     if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr*) &server, slen) < 0) { //send initialization message to server
-        printf("Error sending message to server");
+        printf("UDP: Error sending message to server");
         exit(1);
     }
 
-    printf("Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
+    printf("UDP: Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     //declare recv_arr and ack array
 
@@ -205,12 +201,12 @@ void *udp_thread(void* sock) {
     memset(recv_arr, -1, ARR_SIZE * sizeof(recv_arr[0]));
     memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
 
-    int index = 0, received = 0;
+    int index = 0, received = 0, attempts = 0;
 
     struct msg m_msg, prev_msg;
     prev_msg.chunkNum = -1;
 
-    printf("Receiving messages from server\n");
+    printf("UDP: Receiving messages from server\n");
 
     while(!done) {
         while(1) {
@@ -222,18 +218,12 @@ void *udp_thread(void* sock) {
                 continue;
             }
 
-            //printf("%d\n", m_msg.chunkNum);
             index = m_msg.chunkNum;
             
             recv_arr[index] = m_msg.val;
             ack[index] = 1;
 
-            //printf("%d\n", ack[index]);
-
             if(all_sent) {
-                // for (int i=0; i < ARR_SIZE; i++) {
-                //     printf("print %d: %d\n", i, ack[i]);
-                // }
                 break;
             }
 
@@ -242,19 +232,18 @@ void *udp_thread(void* sock) {
         pthread_mutex_lock(&mutex1);
         bool all_received = true;
         for (int i=0; i < ARR_SIZE; i++) {
-            //printf("%d\n", i);
             if (!ack[i]) {
                 all_received = false;
             }
         }
 
         if (all_received) {
-            // for (int i=0; i < ARR_SIZE; i++) {
-            //     printf("%d\n", i);
-            // }
             done = true;
-            printf("All done\n");
+            printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
+        } else {
+            attempts += 1;
         }
+
         pthread_mutex_unlock(&mutex1);
     }
 }
