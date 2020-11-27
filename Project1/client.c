@@ -10,6 +10,7 @@
 #include <pthread.h> 
 #include <semaphore.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
@@ -22,6 +23,8 @@
 
 void *tcp_thread(void *ptr);
 void *udp_thread(void *ptr);
+bool check_ack();
+int check_ack2();
 
 struct msg {
     int chunkNum;
@@ -36,7 +39,7 @@ pthread_mutex_t mutex2; //figure out naming
 bool all_sent = false, done = false;
 
 int file_size;
-float sections;
+int sections;
 
 int *ack;
 
@@ -132,7 +135,8 @@ void *tcp_thread(void* sock) {
     printf("TCP: Start thread\n");
     int tcp_sock = (int) (intptr_t) sock;
 
-    pthread_mutex_lock(&mute12);
+    pthread_mutex_lock(&mutex1);
+    printf("TCP: Mutex1 locked\n");
 
     printf("TCP: Client connecting...\n");
     
@@ -144,14 +148,17 @@ void *tcp_thread(void* sock) {
 
     //use file_size to create ack array and determine sectioning of file
 
-    sections = file_size/MESSAGE_SIZE;
+    float _sections = file_size/MESSAGE_SIZE;
 
-    if (!roundf(sections) == sections) {    //possibly check for tolerance value here
-        sections = ceilf(sections);
+    if (!roundf(_sections) == _sections) {    //possibly check for tolerance value here
+        _sections = ceilf(_sections);
     }
 
-    ack = malloc((int)sections * sizeof(int));
+    sections = (int)_sections;
 
+    ack = malloc((int)sections * sizeof(int));
+    
+    printf("TCP: Mutex1 unlocked\n");
     pthread_mutex_unlock(&mutex1);
 
     while(!done) {
@@ -162,9 +169,16 @@ void *tcp_thread(void* sock) {
         
         printf("TCP: Sending back acknowledgement array\n");
         
-        int eval = send(tcp_sock, ack, ARR_SIZE * sizeof(ack[0]), 0); 
+        int eval = send(tcp_sock, ack, sections * sizeof(ack[0]), 0);
 
-        // sleep(.01);
+        printf("Ack array sent\n");
+
+        bool all_received = check_ack();
+
+        if(all_received) {
+            printf("Done\n");
+            done = true;
+        }
     }
 }
 
@@ -185,13 +199,14 @@ void *udp_thread(void* sock) {
     printf("UDP: Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     pthread_mutex_lock(&mutex1);
+    printf("UDP: Mutex1 locked and unlocked\n");
     pthread_mutex_unlock(&mutex1);
     
     //set ack array depending on number of sections the file is broken up into
 
     memset(ack, 0, sections * sizeof(ack[0]));
 
-    int index = 0, received = 0, attempts = 0;
+    int index = 0, attempts = 0;
 
     struct msg m_msg, prev_msg; //use prev_msg in case messages are sent before values are assigned
     prev_msg.chunkNum = -1;     //if the previous value discovered is sent, then just ignore
@@ -202,8 +217,15 @@ void *udp_thread(void* sock) {
     while(1) {
         printf("UDP: Begin receive loop\n");
 
-        memset(ack, -1, sizeof(received) * sizeof(received[0]));  //reset received array
+        for(int i = 0; i < sections; i++) { //reset received array
+            received[i] = -1;
+        }  
+
         while(1) {
+            if(all_sent) {
+                break;
+            }
+
             slen = sizeof(struct sockaddr_in);
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen);
@@ -212,54 +234,70 @@ void *udp_thread(void* sock) {
                 continue;                                                       //or already in the ack array, if so, continue
             }
 
-            index = m_msg.chunkNum;
+            //printf("Received %d\n", m_msg.chunkNum);
             
-            ack[index] = 1;
+            ack[m_msg.chunkNum] = 1;
 
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
 
-            if(all_sent) {
-                printf("UDP: End receive loop\n");
-
-                printf("Received %d values\n", received_array_index);
-
-                printf("Received: ");
-                for(int k = 0; k < sizeof(received)/sizeof(int); k++) {
-                    if (received[k] != -1) {
-                        printf("%d ", received[k]);
-                    }
-                }
-                printf("\n");
-
-                received_array_index = 0;
-
-                all_sent = false;
-                attempts+=1;
-                
-                break;
-            }
-
             prev_msg = m_msg;
         }
 
-        bool all_received = true;
+        printf("UDP: End receive loop\n");
 
-        for (int i=0; i < ARR_SIZE; i++) {
-            if (!ack[i]) {
-                all_received = false;
+        printf("UDP: Ack array size: %d/%d\n", check_ack2(), sections);
+
+        printf("UDP: Received %d values\n", received_array_index);
+
+        printf("UDP: Received: ");
+        for(int k = 0; k < sizeof(received)/sizeof(int); k++) {
+            if (received[k] != -1) {
+                printf("%d ", received[k]);
             }
         }
+        printf("\n");
+
+        received_array_index = 0;
+
+        all_sent = false;
+        attempts+=1;
+
+        bool all_received = check_ack();
 
         if (all_received) {
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
             fflush(stdout);
 
-            pthread_mutex_unlock(&mutex1);
             pthread_mutex_destroy(&mutex1);
+            pthread_mutex_destroy(&mutex2);
 
             exit(1);
         }
     }
+}
+
+bool check_ack() {
+    bool all_received = true;
+
+    for (int i=0; i < sections; i++) {
+        if (!ack[i]) {
+            all_received = false;
+        }
+    }
+
+    return all_received;
+}
+
+int check_ack2() {
+    int received = 0;
+
+    for (int i=0; i < sections; i++) {
+        if (ack[i]) {
+            received += 1;
+        }
+    }
+
+    return received;
 }
