@@ -356,8 +356,6 @@ void *tcp_thread_nack(void* sock) {
             pthread_mutex_lock(&mutex2);
             printf("TCP: Mutex2 locked\n");
 
-            printf("all sent: %d\n", all_sent);
-
             printf("TCP: Sending all_sent message to client\n");
             send(client_sock, &all_sent, sizeof(bool), 0);
 
@@ -365,14 +363,11 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Attempting receive of ack array from client\n");
 
-            int ack_size = sections * sizeof(int) * 3;
-
-            int eval = recv(client_sock, &ack, sizeof(ack_size), MSG_WAITALL);
+            recv(client_sock, &ack.nack.size, sizeof(ack.nack.size), 0);
+            recv(client_sock, &ack.nack.top_index, sizeof(ack.nack.top_index), 0);
+            recv(client_sock, ack.nack.arr, ack.nack.size * sizeof(int), 0);
+            
             printf("Ack array size: %d\n", eval);
-
-            // for (int i = 0; i < ack.nack->top_index; i++) {
-            //     printf("%d ", ack.nack->arr[i]);
-            // }
 
             printf("TCP: Ack array received from client\n");
 

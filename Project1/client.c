@@ -86,7 +86,7 @@ int file_size, sections;
 
 struct _ack {
     int* sack;
-    stack nack;
+    stack* nack;
 } ack;
 
 int main(int argc, char *argv[])
@@ -322,46 +322,21 @@ void *tcp_thread_nack(void *sock)
             printf("TCP: All sent size from server: %d bytes\n", as_recv);
         }
 
-        stack* nackptr = create_stack(100);
-        ack.nack = *nackptr;
+        ack.nack = create_stack(100);
 
         for (int i = 0; i < sections; i++) {
             if(!ack.sack[i]) {
-                push(&ack.nack, i, true);
+                push(ack.nack, i, true);
             }
         }
-
-        // for (int i = 0; i < ack.nack->top_index; i++) {
-        //     printf("%d ", ack.nack->arr[i]);
-        // }
-        // printf("\n");
 
         printf("TCP: All_sent message received\n");
 
         printf("TCP: Sending back acknowledgement array\n");
 
-        // for (int i = 0; i < sections; i++) {
-        //     printf("%d ", ack.sack[i]);
-        // }
-        // printf("\n\n\n\n\n");
-        // for (int i = 0; i <= ack.nack->top_index; i++) {
-        //     printf("%d ", ack.nack->arr[i]);
-        // }
-        // printf("\n");
-
-        // exit(1);
-
-        int ack_size = sections * sizeof(int) * 3;
-        
-        if ((send(tcp_sock, &ack, ack_size, 0)) < 0)
-        {
-            perror("Ack send");
-        }
-
-        // if ((send(tcp_sock, ack.sack, sections * sizeof(ack.sack[0]), 0)) < 0)
-        // {
-        //     perror("Ack send");
-        // }
+        send(tcp_sock, &ack.nack.size, sizeof(ack.nack.size), 0);
+        send(tcp_sock, &ack.nack.top_index, sizeof(ack.nack.top_index), 0);
+        send(tcp_sock, ack.nack.arr, ack.nack.size * sizeof(int), 0);
 
         printf("TCP: Ack array sent\n");
         
@@ -401,10 +376,8 @@ void *udp_thread_nack(void *sock)
 
     //set ack array depending on number of sections the file is broken up into
 
-    ack.sack = malloc((int)sections * sizeof(int)); //think this is still necessary under the hood
+    ack.sack = malloc((int)sections * sizeof(int));
     memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
-
-    // ack.nack = create_stack(100);
 
     int index = 0, attempts = 0;
 
