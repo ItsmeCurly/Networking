@@ -12,7 +12,7 @@
 #include <math.h>
 
 #define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
-#define server_PORT 45022
+#define server_PORT 45024
 
 #define NUM_BIND_TRIES 15
 #define MESSAGE_SIZE 4096
@@ -73,7 +73,7 @@ pthread_mutex_t mutex2;
 pthread_mutex_t mutex3;
 pthread_mutex_t mutex4;
 
-union _ack {
+struct _ack {
     int* sack;
     stack* nack;
 } ack;
@@ -225,8 +225,16 @@ int main(int argc, char *argv[]) {
 
     if(_settings.ack_type == selective) {
         rc = pthread_create(&udp, NULL, udp_thread_sack, (void*) (intptr_t) udp_sock);
+
+        if(DEBUG) {
+            printf("Started udp_thread_sack\n");
+        }
     } else {
         rc = pthread_create(&udp, NULL, udp_thread_nack, (void*) (intptr_t) udp_sock);
+
+        if(DEBUG) {
+            printf("Started udp_thread_nack\n");
+        }
     }
 
     if(rc) {
@@ -240,8 +248,16 @@ int main(int argc, char *argv[]) {
 
     if(_settings.ack_type == selective) {
         rc = pthread_create(&tcp, NULL, tcp_thread_sack, (void*) (intptr_t) tcp_sock);
+
+        if(DEBUG) {
+            printf("Started tcp_thread_sack\n");
+        }
     } else {
         rc = pthread_create(&tcp, NULL, tcp_thread_nack, (void*) (intptr_t) tcp_sock);
+
+        if(DEBUG) {
+            printf("Started tcp_thread_nack\n");
+        }
     }
 
     printf("Main: Mutex4 unlocked\n");
@@ -286,15 +302,15 @@ void *tcp_thread_nack(void* sock) {
     //get settings from client regarding ack type, keep debug and 
     //timing the same on from each side's specification
 
-    settings local_settings;
+    // settings local_settings;
 
-    int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
+    // int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
 
-    if(sett_recv < 0) {
-        perror("Settings receive\n");
-    } else {
-        printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
-    }
+    // if(sett_recv < 0) {
+    //     perror("Settings receive\n");
+    // } else {
+    //     printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
+    // }
 
     // _settings.ack_type = local_settings.ack_type;
 
@@ -303,9 +319,9 @@ void *tcp_thread_nack(void* sock) {
     int fs_send = send(client_sock, &file_size, sizeof(file_size), 0);
 
     if(fs_send < 0) {
-        perror("TCP: Settings send\n");
+        perror("TCP: File size send\n");
     } else {
-        printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", fs_send, sizeof(file_size));
+        printf("TCP: Sent file size to client with size %d. Expected size: %ld\n", fs_send, sizeof(file_size));
     }
 
     if(DEBUG) {
@@ -340,6 +356,8 @@ void *tcp_thread_nack(void* sock) {
             pthread_mutex_lock(&mutex2);
             printf("TCP: Mutex2 locked\n");
 
+            printf("all sent: %d\n", all_sent);
+
             printf("TCP: Sending all_sent message to client\n");
             send(client_sock, &all_sent, sizeof(bool), 0);
 
@@ -347,8 +365,14 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Attempting receive of ack array from client\n");
 
-            int eval = recv(client_sock, &ack.nack, sizeof(ack.nack), MSG_WAITALL);
+            int ack_size = sections * sizeof(int) * 3;
+
+            int eval = recv(client_sock, &ack, sizeof(ack_size), MSG_WAITALL);
             printf("Ack array size: %d\n", eval);
+
+            // for (int i = 0; i < ack.nack->top_index; i++) {
+            //     printf("%d ", ack.nack->arr[i]);
+            // }
 
             printf("TCP: Ack array received from client\n");
 
@@ -422,9 +446,9 @@ void *udp_thread_nack(void* sock) {
                 perror("UDP: A message was not sent correctly");
             }
             
-            if(DEBUG) {
-                printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
-            }
+            // if(DEBUG) {
+            //     printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
+            // }
         }
         all_sent = true;
 
@@ -665,9 +689,9 @@ void push(stack* stack, int val, bool allow_increase){
     }
 
     stack->arr[++stack->top_index] = val;
-    if(DEBUG) {
-        printf("%d pushed to stack\n", val);
-    }
+    // if(DEBUG) {
+    //     printf("%d pushed to stack\n", val);
+    // }
 }
 
 void change_size(stack* stack, int amt_inc) {

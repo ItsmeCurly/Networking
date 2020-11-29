@@ -16,7 +16,7 @@
 #define client_PORT 45023
 
 #define server_IP "10.0.2.15"
-#define server_PORT 45022
+#define server_PORT 45024
 
 #define NUM_BIND_TRIES 5
 #define MESSAGE_SIZE 4096
@@ -86,7 +86,7 @@ int file_size, sections;
 
 struct _ack {
     int* sack;
-    stack* nack;
+    stack nack;
 } ack;
 
 int main(int argc, char *argv[])
@@ -253,26 +253,26 @@ void *tcp_thread_nack(void *sock)
 
     printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-    int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
+    // int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
 
-    if (sett_send < 0)
-    {
-        perror("TCP: Settings send\n");
-    }
-    else
-    {
-        printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
-    }
+    // if (sett_send < 0)
+    // {
+    //     perror("TCP: Settings send\n");
+    // }
+    // else
+    // {
+    //     printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
+    // }
 
     int fs_recv = recv(tcp_sock, &file_size, sizeof(int), MSG_WAITALL);
 
     if (fs_recv < 0)
     {
-        perror("TCP: Settings receive\n");
+        perror("TCP: File size receive\n");
     }
     else
     {
-        printf("TCP: Received file size from client with size %d. Expected size: %ld\n", fs_recv, sizeof(settings));
+        printf("TCP: Received file size from client with size %d. Expected size: %ld\n", fs_recv, sizeof(file_size));
     }
 
     if (DEBUG)
@@ -300,22 +300,73 @@ void *tcp_thread_nack(void *sock)
     while (!done)
     {
         printf("TCP: Waiting on all_sent message\n");
-        recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
+        int as_recv = recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
+
+        printf("all sent: %d\n", all_sent);
+
+        pthread_mutex_lock(&mutex2);
+
+        printf("TCP: Mutex2 locked\n");
+
+        if (as_recv < 0)
+        {
+            perror("TCP: All sent receive\n");
+        }
+        else
+        {
+            printf("TCP: Received all sent message from server with size %d. Expected size: %ld\n", as_recv, sizeof(bool));
+        }
+
+        if (DEBUG)
+        {
+            printf("TCP: All sent size from server: %d bytes\n", as_recv);
+        }
+
+        stack* nackptr = create_stack(100);
+        ack.nack = *nackptr;
+
+        for (int i = 0; i < sections; i++) {
+            if(!ack.sack[i]) {
+                push(&ack.nack, i, true);
+            }
+        }
+
+        // for (int i = 0; i < ack.nack->top_index; i++) {
+        //     printf("%d ", ack.nack->arr[i]);
+        // }
+        // printf("\n");
 
         printf("TCP: All_sent message received\n");
 
-        pthread_mutex_lock(&mutex2);
-        printf("TCP: Mutex2 locked and unlocked\n");
-        pthread_mutex_unlock(&mutex2);
-
         printf("TCP: Sending back acknowledgement array\n");
 
-        if ((send(tcp_sock, ack.nack, sizeof(ack.nack), 0)) < 0)
+        // for (int i = 0; i < sections; i++) {
+        //     printf("%d ", ack.sack[i]);
+        // }
+        // printf("\n\n\n\n\n");
+        // for (int i = 0; i <= ack.nack->top_index; i++) {
+        //     printf("%d ", ack.nack->arr[i]);
+        // }
+        // printf("\n");
+
+        // exit(1);
+
+        int ack_size = sections * sizeof(int) * 3;
+        
+        if ((send(tcp_sock, &ack, ack_size, 0)) < 0)
         {
             perror("Ack send");
         }
 
+        // if ((send(tcp_sock, ack.sack, sections * sizeof(ack.sack[0]), 0)) < 0)
+        // {
+        //     perror("Ack send");
+        // }
+
         printf("TCP: Ack array sent\n");
+        
+        printf("TCP: Mutex2 unlocked\n");
+        pthread_mutex_unlock(&mutex2);
 
         bool all_received = check_nack();
 
@@ -375,23 +426,14 @@ void *udp_thread_nack(void *sock)
 
         while (1)
         {
-            pthread_mutex_lock(&mutex2);
-            printf("UDP: Mutex2 locked\n");
-
             if (all_sent)
             {
                 printf("UDP: End receive loop\n");
-
-                ack.nack = create_stack(100);
-
-                for (int i = 0; i < sections; i++) {
-                    if(!ack.sack[i]) {
-                        push(ack.nack, i, true);
-                    }
-                }
-
-                pthread_mutex_unlock(&mutex2);
+                pthread_mutex_lock(&mutex2);
+                printf("UDP: Mutex2 locked\n");
+                
                 printf("UDP: Mutex2 unlocked\n");
+                pthread_mutex_unlock(&mutex2);
 
                 // printf("UDP: Nack array size: %d/%d\n", (ack.nack->top_index)+1, sections);
 
@@ -418,10 +460,14 @@ void *udp_thread_nack(void *sock)
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum && !contains(ack.nack, m_msg.chunkNum))
+            if (prev_msg.chunkNum == m_msg.chunkNum 
+            // && !contains(ack.nack, m_msg.chunkNum)
+            )
             {                                                               //check if value is previous message received
                 continue;                                                   //or already in the ack array, if so, continue
             }
+
+            printf("Received %d\n", m_msg.chunkNum);
 
             //printf("Received %d\n", m_msg.chunkNum);
 
@@ -431,9 +477,6 @@ void *udp_thread_nack(void *sock)
             received_array_index += 1;
 
             prev_msg = m_msg;
-
-            printf("UDP: Mutex2 unlocked\n");
-            pthread_mutex_unlock(&mutex2);
         }
 
         bool all_received = check_sack(); //TODO: Change to NACK
@@ -481,11 +524,11 @@ void *tcp_thread_sack(void *sock)
 
     if (fs_recv < 0)
     {
-        perror("TCP: Settings receive");
+        perror("TCP: File size receive");
     }
     else
     {
-        printf("TCP: Received file size from client with size %d. Expected size: %ld\n", fs_recv, sizeof(settings));
+        printf("TCP: Received file size from server with size %d. Expected size: %ld\n", fs_recv, sizeof(settings));
     }
 
     if (DEBUG)
