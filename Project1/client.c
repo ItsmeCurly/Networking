@@ -11,6 +11,7 @@
 #include <semaphore.h>
 #include <stdbool.h>
 #include <math.h>
+#include <time.h>
 
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
@@ -291,8 +292,11 @@ void *tcp_thread_nack(void *sock)
 
     sections = (int)_sections;
 
-    // stack* nack = create_stack(100);
-    // ack.nack = nack;    //initialize nack stack
+    ack.nack = create_stack(sections);
+
+    for (int i = 0; i < sections; i++) {
+        push(ack.nack, i, true);
+    }
 
     printf("TCP: Mutex1 unlocked\n");
     pthread_mutex_unlock(&mutex1);
@@ -301,9 +305,7 @@ void *tcp_thread_nack(void *sock)
     {
         printf("TCP: Waiting on all_sent message\n");
         int as_recv = recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
-
-        printf("all sent: %d\n", all_sent);
-
+        
         pthread_mutex_lock(&mutex2);
 
         printf("TCP: Mutex2 locked\n");
@@ -314,15 +316,23 @@ void *tcp_thread_nack(void *sock)
         }
         else
         {
-            printf("TCP: Received all sent message from server with size %d. Expected size: %ld\n", as_recv, sizeof(bool));
+            printf("TCP: Received all_sent message from server\n");
         }
-
         if (DEBUG)
         {
-            printf("TCP: All sent size from server: %d bytes\n", as_recv);
+            printf("TCP: All sent size from server: %d bytes | Expected: %ld\n", as_recv, sizeof(bool));
+            printf("TCP: All sent value: %d | Expected: %d\n", all_sent, true);
         }
 
-        ack.nack = create_stack(100);
+        int estimate_size = 0;
+
+        for (int i = 0; i < sections; i++) {
+            if(!ack.sack[i]) {
+                estimate_size+=1;
+            }
+        }
+
+        ack.nack = create_stack(estimate_size);
 
         for (int i = 0; i < sections; i++) {
             if(!ack.sack[i]) {
@@ -330,13 +340,11 @@ void *tcp_thread_nack(void *sock)
             }
         }
 
-        printf("TCP: All_sent message received\n");
-
         printf("TCP: Sending back acknowledgement array\n");
 
-        send(tcp_sock, &ack.nack.size, sizeof(ack.nack.size), 0);
-        send(tcp_sock, &ack.nack.top_index, sizeof(ack.nack.top_index), 0);
-        send(tcp_sock, ack.nack.arr, ack.nack.size * sizeof(int), 0);
+        send(tcp_sock, &ack.nack->size, sizeof(ack.nack->size), 0);
+        send(tcp_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
+        send(tcp_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
 
         printf("TCP: Ack array sent\n");
         
@@ -368,6 +376,8 @@ void *udp_thread_nack(void *sock)
         exit(1);
     }
 
+    clock_t start = clock();
+
     printf("UDP: Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
     pthread_mutex_lock(&mutex1);
@@ -375,6 +385,12 @@ void *udp_thread_nack(void *sock)
     pthread_mutex_unlock(&mutex1);
 
     //set ack array depending on number of sections the file is broken up into
+
+    ack.nack = create_stack(sections);
+
+    for (int i = 0; i < sections; i++) {
+        push(ack.nack, i, true);
+    }
 
     ack.sack = malloc((int)sections * sizeof(int));
     memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
@@ -402,10 +418,9 @@ void *udp_thread_nack(void *sock)
             if (all_sent)
             {
                 printf("UDP: End receive loop\n");
+
                 pthread_mutex_lock(&mutex2);
-                printf("UDP: Mutex2 locked\n");
-                
-                printf("UDP: Mutex2 unlocked\n");
+                printf("UDP: Mutex2 locked and unlocked\n");
                 pthread_mutex_unlock(&mutex2);
 
                 // printf("UDP: Nack array size: %d/%d\n", (ack.nack->top_index)+1, sections);
@@ -413,7 +428,7 @@ void *udp_thread_nack(void *sock)
                 printf("UDP: Received %d values\n", received_array_index);
 
                 printf("UDP: Received: ");
-                for (int k = 0; k < sizeof(received) / sizeof(int); k++)
+                for (int k = 0; k < received_array_index; k++)
                 {
                     if (received[k] != -1)
                     {
@@ -433,16 +448,19 @@ void *udp_thread_nack(void *sock)
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum 
-            // && !contains(ack.nack, m_msg.chunkNum)
-            )
+            if (prev_msg.chunkNum == m_msg.chunkNum)
             {                                                               //check if value is previous message received
                 continue;                                                   //or already in the ack array, if so, continue
             }
+            // printf("index: %d\n", get_index(ack.nack, m_msg.chunkNum));
+            // printf("Contains: %d\n", contains(ack.nack, m_msg.chunkNum));
+            // if(!contains(ack.nack, m_msg.chunkNum)) {
+            //     continue;
+            // }
 
-            printf("Received %d\n", m_msg.chunkNum);
-
-            //printf("Received %d\n", m_msg.chunkNum);
+            if(DEBUG) {
+                printf("Received %d\n", m_msg.chunkNum);
+            }
 
             ack.sack[m_msg.chunkNum] = 1;
 
@@ -452,10 +470,22 @@ void *udp_thread_nack(void *sock)
             prev_msg = m_msg;
         }
 
+        free(ack.nack);
+
         bool all_received = check_sack(); //TODO: Change to NACK
 
         if (all_received)
         {
+            clock_t end = clock();
+
+            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+
+            // printf("%ld %ld %ld\n", start, end, CLOCKS_PER_SEC);
+
+            if(TIME) {
+                printf("NACK transferral took %f seconds on the client side\n", execute_time);
+            }
+
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
             fflush(stdout);
@@ -560,11 +590,14 @@ void *udp_thread_sack(void *sock)
 
     printf("UDP: Sending initialization message to server...\n");
 
+    FILE* out_fp = fopen("new.txt", "w");
+
     if (sendto(udp_sock, buf, sizeof(buf), 0, (struct sockaddr *)&server, slen) < 0)
     { //send initialization message to server
         printf("UDP: Error sending message to server");
         exit(1);
     }
+    clock_t start = clock();
 
     printf("UDP: Message succesfully sent to %s at %d port \n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
@@ -644,6 +677,14 @@ void *udp_thread_sack(void *sock)
 
         if (all_received)
         {
+            clock_t end = clock();
+
+            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+
+            if(TIME) {
+                printf("SACK transferral took %f seconds on the client side\n", execute_time);
+            }
+
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
             fflush(stdout);
@@ -712,7 +753,7 @@ int is_empty(stack* stack) {
 void push(stack* stack, int val, bool allow_increase){
     if(is_full(stack)) {
         if(allow_increase) {
-            change_size(stack, 20);
+            change_size(stack, 40);
         } else return;
     }
 
@@ -723,18 +764,30 @@ void push(stack* stack, int val, bool allow_increase){
 }
 
 void change_size(stack* stack, int amt_inc) {
+    printf("Change size: %d %d\n", stack->size, amt_inc);
     if(stack->size + amt_inc < 0) {
         perror("Cannot set size less than 0\n");
         return;
     }
-
+    printf("1\n");
     unsigned int new_size = stack->size += amt_inc;
+    printf("2\n");
 
     int* new_arr = (int*) malloc(new_size * sizeof(int));
+    printf("3\n");
+
+    for(int i = 0; i < new_size; i++) {
+        new_arr[i] = -1;
+    }
+    printf("4\n");
 
     for(int i = 0; i < stack->size; i++) {
         new_arr[i] = stack->arr[i];
     }
+    printf("5\n");
+
+    free(stack->arr);
+    printf("6\n");
 
     stack->arr = new_arr;
     stack->size = new_size;
@@ -762,6 +815,10 @@ int peek(stack* stack) {
 // I need it for the implementation that I'm going for
 int get_index(stack* stack, int val) {
     for(int i = 0; i < stack->size; i++) {
+        if(DEBUG) {
+            printf("i: %d\n", i);
+            printf("arr[i]: %d\n", stack->arr[i]);
+        }
         if (val == stack->arr[i]) {
             return i;
         }
@@ -770,7 +827,7 @@ int get_index(stack* stack, int val) {
 }
 
 bool contains(stack* stack, int val) {
-    return get_index(stack, val) >= 0;
+    return (get_index(stack, val) >= 0);
 }
 
 void clear(stack* stack) {

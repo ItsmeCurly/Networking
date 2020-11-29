@@ -10,6 +10,7 @@
 #include <semaphore.h> 
 #include <stdbool.h>
 #include <math.h>
+#include <time.h>
 
 #define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
 #define server_PORT 45024
@@ -72,8 +73,6 @@ pthread_mutex_t mutex1;
 pthread_mutex_t mutex2;
 pthread_mutex_t mutex3;
 pthread_mutex_t mutex4;
-
-https://prod.liveshare.vsengsaas.visualstudio.com/join?CF5769B51B9E9704982C0F1D7BF9D08B5443
 
 struct _ack {
     int* sack;
@@ -363,18 +362,67 @@ void *tcp_thread_nack(void* sock) {
 
             all_sent = false;
 
-            printf("TCP: Attempting receive of ack array from client\n");
+            printf("TCP: Attempting receive of NACK array from client\n");
 
-            recv(client_sock, &ack.nack.size, sizeof(ack.nack.size), 0);
-            recv(client_sock, &ack.nack.top_index, sizeof(ack.nack.top_index), 0);
-            recv(client_sock, ack.nack.arr, ack.nack.size * sizeof(int), 0);
+            int size_recv = recv(client_sock, &ack.nack->size, sizeof(ack.nack->size), 0);
+            if (size_recv < 0)
+            {
+                perror("TCP: Size receive");
+                exit(0);
+            }
+            else
+            {
+                printf("TCP: Received NACK size from server\n");
+            }
+            if (DEBUG)
+            {
+                printf("TCP: NACK size %d | Expected size: %ld\n", size_recv, sizeof(ack.nack->size));
+            }
+
+            int top_recv = recv(client_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
+            if (top_recv < 0)
+            {
+                perror("TCP: top_index receive");
+                exit(0);
+            }
+            else
+            {
+                printf("TCP: Received NACK top_index from server\n");
+            }
+            if (DEBUG)
+            {
+                printf("TCP: top_index size %d | Expected size: %ld\n", top_recv, sizeof(ack.nack->top_index));
+            }
+
+            int arr_recv = recv(client_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
+            if (arr_recv < 0)
+            {
+                perror("TCP: NACK arr receive");
+                exit(0);
+            }
+            else
+            {
+                printf("TCP: Received NACK arr from server\n");
+            }
+            if (DEBUG)
+            {
+                printf("TCP: NACK arr size %d | Expected size: %ld\n", arr_recv, ack.nack->size * sizeof(int));
+            }
+
+            if(DEBUG) {
+                printf("Values remaining: ");
+                for(int i = 0; i <= ack.nack->top_index; i++) {
+                    printf("%d ", ack.nack->arr[i]);
+                }
+                printf("\n");
+            }
             
-            printf("Ack array size: %d\n", eval);
 
             printf("TCP: Ack array received from client\n");
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
+            sleep(.001);
         }
     }
 }
@@ -398,6 +446,8 @@ void *udp_thread_nack(void* sock) {
         printf("UDP: Error receiving message from client");
         exit(1);
     }
+
+    clock_t start = clock();
 
     printf("UDP: Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
@@ -424,18 +474,29 @@ void *udp_thread_nack(void* sock) {
 
         int loop_end;
         
-        for (int i = 0; i < sections; i++) {
-            if(ack.nack->arr[i]) {   //TODO: change to NACK
-                all_received = false; //continue into loop body to send
-            } else {
-                continue;
-            }
+        // while(!is_empty(ack.nack)) {
+        //     all_received = false;
+
+        //     struct msg m_msg;
+            
+        //     m_msg.chunkNum = pop(ack.nack);
+
+        //     fseek(fp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
+        //     fread(m_msg.val, MESSAGE_SIZE, sizeof(char), fp);
+            
+        //     int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
+        //     if(msg_send < 0) {
+        //         perror("UDP: A message was not sent correctly");
+        //     }
+        // }
+        for (int i = 0; i <= ack.nack->top_index; i++) {
+            all_received = false;
 
             struct msg m_msg;
             
-            m_msg.chunkNum = i;
+            m_msg.chunkNum = ack.nack->arr[i];
 
-            fseek(fp, i * MESSAGE_SIZE, SEEK_SET);
+            fseek(fp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
             fread(m_msg.val, MESSAGE_SIZE, sizeof(char), fp);
             
             int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
@@ -455,6 +516,14 @@ void *udp_thread_nack(void* sock) {
 
             pthread_mutex_destroy(&mutex1);
             pthread_mutex_destroy(&mutex2);
+
+            clock_t end = clock();
+            
+            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+
+            if(TIME) {
+                printf("NACK transferral took %f seconds on the server side\n", execute_time);
+            }
 
             sleep(2);   //sleep to let tcp thread finish, it needs this to flush the sending/receiving of the acknowledgement array
 
@@ -585,6 +654,7 @@ void *udp_thread_sack(void* sock) {
         printf("UDP: Error receiving message from client");
         exit(1);
     }
+    clock_t start = clock();
 
     printf("UDP: Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
@@ -641,6 +711,14 @@ void *udp_thread_sack(void* sock) {
         all_sent = true;
 
         if (all_received) {
+            clock_t end = clock();
+
+            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+
+            if(TIME) {
+                printf("SACK transferral took %f seconds on the client side\n", execute_time);
+            }
+
             done = true;
             pthread_mutex_unlock(&mutex2);
 
