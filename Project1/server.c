@@ -19,6 +19,20 @@
 
 void *tcp_thread(void *ptr);
 void *udp_thread(void *ptr);
+bool check_nack();
+
+//stack functions
+stackptr create_stack(unsigned int size);
+int is_full(stackptr stack);
+int is_empty(stackptr stack);
+void push(stackptr stack, int val);
+int pop(stackptr stack);
+int peek(stackptr stack);
+void clear(stackptr stack);
+bool contains(stackptr stack, int val);
+void change_size(stackptr stack, int amt_inc);
+void set_size(stackptr stack, int new_size);
+int get_index(stackptr stack, int val);
 
 bool DEBUG = false, TIME = false;
 
@@ -50,6 +64,8 @@ struct stack {
     int* arr;
 };
 
+typedef struct stack* stackptr;
+
 pthread_mutex_t mutex1;
 pthread_mutex_t mutex2;
 pthread_mutex_t mutex3;
@@ -57,7 +73,7 @@ pthread_mutex_t mutex4;
 
 union _ack {
     int* sack;
-    struct linked_list nack;
+    stackptr nack;
 } ack;
 
 FILE *fp;
@@ -294,11 +310,12 @@ void *tcp_thread_nack(void* sock) {
 
     sections = (int)_sections;
 
-    struct linked_list nack;
-    // nack.head = NULL;
-    nack.size = 0;
+    stackptr nack = create_stack(100);
+    ack.nack = nack;    //initialize nack stack
 
-    ack.nack = nack;    //initialize nack linked list
+    for(int i = 0; i < sections; i++) {
+        push(ack.nack, i);
+    }
 
     if(DEBUG){
         printf("Sections: %d, _sections: %f\n", sections, _sections);
@@ -320,7 +337,7 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Attempting receive of ack array from client\n");
 
-            int eval = recv(client_sock, &ack.nack, sizeof(ack.nack), MSG_WAITALL);  //TODO: change to NACK
+            int eval = recv(client_sock, &ack.nack, sizeof(ack.nack), MSG_WAITALL);
             printf("Ack array size: %d\n", eval);
 
             printf("TCP: Ack array received from client\n");
@@ -362,10 +379,6 @@ void *udp_thread_nack(void* sock) {
     pthread_mutex_unlock(&mutex3);
 
     //can work with ack array after this
-
-    // struct node head
-
-    // ack.nack = malloc
     
     while(1) {
         pthread_mutex_lock(&mutex2);
@@ -379,10 +392,9 @@ void *udp_thread_nack(void* sock) {
         printf("UDP: Enter send loop\n");
 
         int loop_end;
-
         
         for (int i = 0; i < sections; i++) {
-            if(!ack[i]) {   //TODO: change to NACK
+            if(ack.nack->arr[i]) {   //TODO: change to NACK
                 all_received = false; //continue into loop body to send
             } else {
                 continue;
