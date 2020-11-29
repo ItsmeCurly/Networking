@@ -21,24 +21,13 @@
 #define NUM_BIND_TRIES 5
 #define MESSAGE_SIZE 4096
 
-void *tcp_thread(void *ptr);
-void *udp_thread(void *ptr);
+void *tcp_thread_sack(void *ptr);
+void *udp_thread_sack(void *ptr);
+void *tcp_thread_nack(void *ptr);
+void *udp_thread_nack(void *ptr);
 bool check_sack();
 int count_sack();
 bool check_nack();
-
-//stack functions
-stackptr create_stack(unsigned int size);
-int is_full(stackptr stack);
-int is_empty(stackptr stack);
-void push(stackptr stack, int val);
-int pop(stackptr stack);
-int peek(stackptr stack);
-void clear(stackptr stack);
-bool contains(stackptr stack, int val);
-void change_size(stackptr stack, int amt_inc);
-void set_size(stackptr stack, int new_size);
-int get_index(stackptr stack, int val);
 
 bool DEBUG = false, TIME = false;
 
@@ -63,13 +52,26 @@ struct msg
     char *val;
 };
 
-struct stack {
+struct _stack {
     int top_index;
     unsigned int size;
     int* arr;
 };
 
-typedef struct stack* stackptr;
+typedef struct _stack stack;
+
+//stack functions
+stack* create_stack(unsigned int size);
+int is_full(stack* stack);
+int is_empty(stack* stack);
+void push(stack* stack, int val, bool allow_increase);
+int pop(stack* stack);
+int peek(stack* stack);
+void clear(stack* stack);
+bool contains(stack* stack, int val);
+void change_size(stack* stack, int amt_inc);
+void set_size(stack* stack, int new_size);
+int get_index(stack* stack, int val);
 
 struct sockaddr_in server;
 
@@ -84,7 +86,7 @@ int file_size, sections;
 
 union _ack {
     int* sack;
-    struct stack* nack;
+    stack* nack;
 } ack;
 
 int main(int argc, char *argv[])
@@ -98,30 +100,32 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
-    for (int i = 1; i < argc - 1; i++)
+    for (int i = 1; i < argc; i++)
     {
-        if (strcmp(argv[i], "-acktype"))
+        if (strcmp(argv[i], "-acktype") == 0)
         {
-            if (strcmp(argv[i + 1], "neg"))
+            if (strcmp(argv[i + 1], "neg") == 0)
             {
                 ack_type = negative;
             }
-            else if (strcmp(argv[i + 1], "sel"))
+            else if (strcmp(argv[i + 1], "sel") == 0)
             {
                 ack_type = selective;
             }
         }
-        else if (strcmp(argv[i], "-debug"))
-        {
+        else if (strcmp(argv[i], "-debug") == 0) {
             DEBUG = true;
         }
-        else if (strcmp(argv[i], "-time"))
-        {
+        else if (strcmp(argv[i], "-time") == 0) {
             TIME = true;
         }
     }
 
     _settings = (settings){ack_type, DEBUG, TIME};
+
+    if(DEBUG) {
+        printf("DEBUG: Ack type: %d\n", ack_type);
+    }
 
     int udp_sock;
     char buf[12];
@@ -220,11 +224,11 @@ int main(int argc, char *argv[])
     //start tcp thread and debug
     if (_settings.ack_type == selective)
     {
-        rc = pthread_create(&udp, NULL, tcp_thread_sack, (void *)(intptr_t)udp_sock);
+        rc = pthread_create(&tcp, NULL, tcp_thread_sack, (void *)(intptr_t)tcp_sock);
     }
     else
     {
-        rc = pthread_create(&udp, NULL, tcp_thread_nack, (void *)(intptr_t)udp_sock);
+        rc = pthread_create(&tcp, NULL, tcp_thread_nack, (void *)(intptr_t)tcp_sock);
     }
 
     if (rc)
@@ -273,7 +277,7 @@ void *tcp_thread_nack(void *sock)
 
     if (DEBUG)
     {
-        printf("TCP: File size from server: %d bytes", file_size);
+        printf("TCP: File size from server: %d bytes\n", file_size);
     }
 
     //use file_size to create ack array and determine sectioning of file
@@ -287,8 +291,7 @@ void *tcp_thread_nack(void *sock)
 
     sections = (int)_sections;
 
-    stackptr nack = create_stack(100);
-
+    stack* nack = create_stack(100);
     ack.nack = nack;    //initialize nack linked list
 
     printf("TCP: Mutex1 unlocked\n");
@@ -307,7 +310,7 @@ void *tcp_thread_nack(void *sock)
 
         printf("TCP: Sending back acknowledgement array\n");
 
-        if ((send(tcp_sock, ack, ack.nack.size * sizeof(peek(ack.nack)), 0)) < 0)
+        if ((send(tcp_sock, ack.nack, sizeof(ack), 0)) < 0)
         {
             perror("Ack send");
         }
@@ -350,6 +353,8 @@ void *udp_thread_nack(void *sock)
     ack.sack = malloc((int)sections * sizeof(int)); //think this is still necessary under the hood
     memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
 
+    // ack.nack = create_stack(100);
+
     int index = 0, attempts = 0;
 
     struct msg m_msg, prev_msg; //use prev_msg in case messages are sent before values are assigned
@@ -378,15 +383,15 @@ void *udp_thread_nack(void *sock)
                 printf("UDP: End receive loop\n");
 
                 for (int i = 0; i < sections; i++) {
-                    if(!ack[i]) {
-                        push(ack.nack, i);
+                    if(!ack.sack[i]) {
+                        push(ack.nack, i, true);
                     }
                 }
 
                 pthread_mutex_unlock(&mutex2);
                 printf("UDP: Mutex2 unlocked\n");
 
-                printf("UDP: Nack array size: %d/%d\n", (ack.nack->top)+1, sections);
+                // printf("UDP: Nack array size: %d/%d\n", (ack.nack->top_index)+1, sections);
 
                 printf("UDP: Received %d values\n", received_array_index);
 
@@ -411,7 +416,7 @@ void *udp_thread_nack(void *sock)
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum && !contains(ack, m_msg.chunkNum))
+            if (prev_msg.chunkNum == m_msg.chunkNum && !contains(ack.nack, m_msg.chunkNum))
             {                                                               //check if value is previous message received
                 continue;                                                   //or already in the ack array, if so, continue
             }
@@ -459,22 +464,22 @@ void *tcp_thread_sack(void *sock)
 
     printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-    int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
+    // int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
 
-    if (sett_send < 0)
-    {
-        perror("TCP: Settings send\n");
-    }
-    else
-    {
-        printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
-    }
+    // if (sett_send < 0)
+    // {
+    //     perror("TCP: Settings send\n");
+    // }
+    // else
+    // {
+    //     printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
+    // }
 
     int fs_recv = recv(tcp_sock, &file_size, sizeof(int), MSG_WAITALL);
 
     if (fs_recv < 0)
     {
-        perror("TCP: Settings receive\n");
+        perror("TCP: Settings receive");
     }
     else
     {
@@ -497,7 +502,7 @@ void *tcp_thread_sack(void *sock)
 
     sections = (int)_sections;
 
-    ack = malloc((int)sections * sizeof(int));
+    ack.sack = malloc((int)sections * sizeof(int));
 
     printf("TCP: Mutex1 unlocked\n");
     pthread_mutex_unlock(&mutex1);
@@ -511,7 +516,7 @@ void *tcp_thread_sack(void *sock)
 
         printf("TCP: Sending back acknowledgement array\n");
 
-        if ((send(tcp_sock, ack, sections * sizeof(ack[0]), 0)) < 0)
+        if ((send(tcp_sock, ack.sack, sections * sizeof(ack.sack[0]), 0)) < 0)
         {
             perror("Ack send");
         }
@@ -551,7 +556,7 @@ void *udp_thread_sack(void *sock)
 
     //set ack array depending on number of sections the file is broken up into
 
-    memset(ack, 0, sections * sizeof(ack[0]));
+    memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
 
     int index = 0, attempts = 0;
 
@@ -581,14 +586,14 @@ void *udp_thread_sack(void *sock)
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum || ack[m_msg.chunkNum])
+            if (prev_msg.chunkNum == m_msg.chunkNum || ack.sack[m_msg.chunkNum])
             {             //check if value is previous message received
                 continue; //or already in the ack array, if so, continue
             }
 
             //printf("Received %d\n", m_msg.chunkNum);
 
-            ack[m_msg.chunkNum] = 1;
+            ack.sack[m_msg.chunkNum] = 1;
 
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
@@ -597,8 +602,6 @@ void *udp_thread_sack(void *sock)
         }
 
         printf("UDP: End receive loop\n");
-
-        printf("UDP: Ack array size: %d/%d\n", count_sack(), sections);
 
         printf("UDP: Received %d values\n", received_array_index);
 
@@ -611,6 +614,8 @@ void *udp_thread_sack(void *sock)
             }
         }
         printf("\n");
+
+        printf("UDP: New ack array size: %d/%d\n", count_sack(), sections);
 
         received_array_index = 0;
 
@@ -639,7 +644,7 @@ bool check_sack()
 
     for (int i = 0; i < sections; i++)
     {
-        if (!ack[i])
+        if (!ack.sack[i])
         {
             all_received = false;
         }
@@ -654,7 +659,7 @@ int count_sack()
 
     for (int i = 0; i < sections; i++)
     {
-        if (ack[i])
+        if (ack.sack[i])
         {
             received += 1;
         }
@@ -668,25 +673,25 @@ bool check_nack()
     return is_empty(ack.nack);
 }
 
-stackptr create_stack(unsigned int size){
-    stackptr stack = (stackptr) malloc(sizeof(stackptr));
+stack* create_stack(unsigned int size){
+    stack* new_stack = (stack*) malloc(sizeof(stack*));
 
-    stack->size = size;
-    stack->top_index = -1;
-    stack->arr = (int*) malloc(stack->size * sizeof(int));
+    new_stack->size = size;
+    new_stack->top_index = -1;
+    new_stack->arr = (int*) malloc(new_stack->size * sizeof(int));
 
-    return stack;
+    return new_stack;
 }
 
-int is_full(stackptr stack) {
+int is_full(stack* stack) {
     return stack->top_index == stack->size - 1;
 }
 
-int is_empty(stackptr stack) {
+int is_empty(stack* stack) {
     return stack->top_index == -1;
 }
 
-void push(stackptr stack, int val, bool allow_increase){
+void push(stack* stack, int val, bool allow_increase){
     if(is_full(stack)) {
         if(allow_increase) {
             change_size(stack, 20);
@@ -699,10 +704,10 @@ void push(stackptr stack, int val, bool allow_increase){
     }
 }
 
-void change_size(stackptr stack, int amt_inc) {
-    if(new_size + amt_inc < 0) {
+void change_size(stack* stack, int amt_inc) {
+    if(stack->size + amt_inc < 0) {
         perror("Cannot set size less than 0\n");
-        return
+        return;
     }
 
     unsigned int new_size = stack->size += amt_inc;
@@ -717,18 +722,18 @@ void change_size(stackptr stack, int amt_inc) {
     stack->size = new_size;
 }
 
-void set_size(stackptr stack, int new_size) {
+void set_size(stack* stack, int new_size) {
     change_size(stack, new_size - stack->size);
 }
 
-int pop(stackptr stack) {
+int pop(stack* stack) {
     if (is_empty(stack)) {
         return -1;
     }
     return stack->arr[stack->top_index--];
 }
 
-int peek(stackptr stack) {
+int peek(stack* stack) {
     if (is_empty(stack)) {
         return -1;
     }
@@ -737,7 +742,7 @@ int peek(stackptr stack) {
 
 // I know this isn't a standard for stacks, but 
 // I need it for the implementation that I'm going for
-int get_index(stackptr stack, int val) {
+int get_index(stack* stack, int val) {
     for(int i = 0; i < stack->size; i++) {
         if (val == stack->arr[i]) {
             return i;
@@ -746,11 +751,11 @@ int get_index(stackptr stack, int val) {
     return -1;
 }
 
-bool contains(stackptr stack, int val) {
+bool contains(stack* stack, int val) {
     return get_index(stack, val) >= 0;
 }
 
-void clear(stackptr stack) {
+void clear(stack* stack) {
     free(stack->arr);
 
     stack->arr = (int*) malloc(stack->size * sizeof(int));
