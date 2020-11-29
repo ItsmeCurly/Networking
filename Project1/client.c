@@ -84,7 +84,7 @@ bool all_sent = false, done = false;
 
 int file_size, sections;
 
-union _ack {
+struct _ack {
     int* sack;
     stack* nack;
 } ack;
@@ -291,8 +291,8 @@ void *tcp_thread_nack(void *sock)
 
     sections = (int)_sections;
 
-    stack* nack = create_stack(100);
-    ack.nack = nack;    //initialize nack linked list
+    // stack* nack = create_stack(100);
+    // ack.nack = nack;    //initialize nack stack
 
     printf("TCP: Mutex1 unlocked\n");
     pthread_mutex_unlock(&mutex1);
@@ -310,7 +310,7 @@ void *tcp_thread_nack(void *sock)
 
         printf("TCP: Sending back acknowledgement array\n");
 
-        if ((send(tcp_sock, ack.nack, sizeof(ack), 0)) < 0)
+        if ((send(tcp_sock, ack.nack, sizeof(ack.nack), 0)) < 0)
         {
             perror("Ack send");
         }
@@ -381,6 +381,8 @@ void *udp_thread_nack(void *sock)
             if (all_sent)
             {
                 printf("UDP: End receive loop\n");
+
+                ack.nack = create_stack(100);
 
                 for (int i = 0; i < sections; i++) {
                     if(!ack.sack[i]) {
