@@ -154,6 +154,8 @@ void *tcp_thread(void* sock) {
     pthread_mutex_unlock(&mutex1);
 
     while (!done) {
+        pthread_mutex_lock(&mutex3);
+        printf("TCP: Mutex3 unlocked\n");
         if (all_sent) {
             pthread_mutex_lock(&mutex2);
             printf("TCP: Mutex2 locked\n");
@@ -169,6 +171,9 @@ void *tcp_thread(void* sock) {
             printf("Ack array size: %d\n", eval);
 
             printf("TCP: Ack array received from client\n");
+
+            printf("TCP: Mutex3 unlocked\n");
+            pthread_mutex_unlock(&mutex3);
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
@@ -210,6 +215,9 @@ void *udp_thread(void* sock) {
 
     memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
     
+    pthread_mutex_lock(&mutex3);
+    printf("UDP: Mutex3 locked\n");
+    
     pthread_mutex_unlock(&mutex1);
 
     printf("UDP: Mutex1 unlocked\n");
@@ -241,6 +249,9 @@ void *udp_thread(void* sock) {
         }
         all_sent = true;
 
+        pthread_mutex_unlock(&mutex3);
+        printf("UDP: Mutex3 unlocked\n");
+
         if (all_received) {
             done = true;
             pthread_mutex_unlock(&mutex2);
@@ -256,6 +267,9 @@ void *udp_thread(void* sock) {
 
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
+
+        pthread_mutex_lock(&mutex3);
+        printf("UDP: Mutex3 locked\n");
 
         sleep(.001);
     }
