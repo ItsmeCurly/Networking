@@ -10,7 +10,7 @@
 #include <semaphore.h> 
 #include <stdbool.h>
 
-#define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
+#define server_IP "130.111.46.105" //130.111.46.105 10.0.2.15
 #define server_PORT 45022
 #define NUM_BIND_TRIES 5
 #define ARR_SIZE 10000
@@ -31,6 +31,7 @@ pthread_mutex_t mutex3;
 int ack[ARR_SIZE];
 
 bool done = false, all_sent = false;
+bool r = false;
 
 int main(int argc, char *argv[]) {
     int udp_sock;
@@ -159,8 +160,8 @@ void *tcp_thread(void* sock) {
     int attp = 0;
 
     while (!done) {
-        pthread_mutex_lock(&mutex3);
-        printf("TCP: Mutex3 unlocked\n");
+        // pthread_mutex_lock(&mutex3);
+        // printf("TCP: Mutex3 locked\n");
         if (all_sent) {
             pthread_mutex_lock(&mutex2);
             printf("TCP: Mutex2 locked\n");
@@ -177,11 +178,16 @@ void *tcp_thread(void* sock) {
 
             printf("TCP: Ack array received from client\n");
 
-            printf("TCP: Mutex3 unlocked\n");
-            pthread_mutex_unlock(&mutex3);
+            // printf("TCP: Mutex3 unlocked\n");
+            // pthread_mutex_unlock(&mutex3);
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
+
+            while(!r) {
+            }
+
+            r = false;
         }
     }
 }
@@ -220,8 +226,8 @@ void *udp_thread(void* sock) {
 
     memset(ack, 0, ARR_SIZE * sizeof(ack[0]));
     
-    pthread_mutex_lock(&mutex3);
-    printf("UDP: Mutex3 locked\n");
+    // pthread_mutex_lock(&mutex3);
+    // printf("UDP: Mutex3 locked\n");
     
     pthread_mutex_unlock(&mutex1);
 
@@ -254,8 +260,8 @@ void *udp_thread(void* sock) {
         }
         all_sent = true;
 
-        pthread_mutex_unlock(&mutex3);
-        printf("UDP: Mutex3 unlocked\n");
+        // pthread_mutex_unlock(&mutex3);
+        // printf("UDP: Mutex3 unlocked\n");
 
         if (all_received) {
             done = true;
@@ -273,9 +279,8 @@ void *udp_thread(void* sock) {
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
 
-        pthread_mutex_lock(&mutex3);
-        printf("UDP: Mutex3 locked\n");
+        r = true;
 
-        sleep(.001);
+        while(all_sent) {}
     }
 }
