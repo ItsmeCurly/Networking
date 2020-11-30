@@ -1,4 +1,11 @@
-Requires -pthread to run along with -std=c99.
+Compilation: 
+gcc -pthread -o server server.c -std=gnu99
+gcc -pthread -o client client.c -std=gnu99
 
-Server.c and client.c scheduling issue fixed with a sleep before the termination of the server program.
-Allows TCP thread to finish sending/receiving ack array before exiting.
+Execution:
+./server
+./client
+
+Make sure IPs and ports are correct before execution
+
+I believe there's no math library in this, so -lm is not necessary
