@@ -14,7 +14,7 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -223,13 +223,7 @@ void *udp_thread(void* sock) {
 
         if (all_received) {
             done = true;
-
-            for (int i=0; i < ARR_SIZE; i++) {
-                if (ack[i]) {
-                    printf("%d ", recv_arr[i]);
-                }
-            }
-            printf("\n");
+            
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
             fflush(stdout);
 

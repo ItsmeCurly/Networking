@@ -303,17 +303,34 @@ void *tcp_thread_nack(void* sock) {
     //get settings from client regarding ack type, keep debug and 
     //timing the same on from each side's specification
 
-    // settings local_settings;
+    settings local_settings;
 
-    // int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
+    int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
 
-    // if(sett_recv < 0) {
-    //     perror("Settings receive\n");
-    // } else {
-    //     printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
-    // }
+    if(sett_recv < 0) {
+        perror("Settings receive\n");
+    } else {
+        printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
+    }
 
     // _settings.ack_type = local_settings.ack_type;
+
+    bool mirrored_settings;
+
+    if(local_settings.ack_type != _settings.ack_type) {
+        mirrored_settings = false;
+        send(client_sock, &mirrored_settings, sizeof(bool), 0);
+        
+        printf("Mismatched ACK types, exiting...\n");
+
+        sleep(2);
+        exit(0);
+    } else {
+        mirrored_settings = true;
+        send(client_sock, &mirrored_settings, sizeof(bool), 0);
+    }
+
+    sleep(5);
 
     //send file size over to client
 
@@ -422,6 +439,7 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
+
             sleep(.001);
         }
     }
@@ -534,7 +552,9 @@ void *udp_thread_nack(void* sock) {
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
 
-        sleep(.01);
+        while(all_sent) {
+            sched_yield();
+        }
     }
 }
 
@@ -569,15 +589,27 @@ void *tcp_thread_sack(void* sock) {
     //get settings from client regarding ack type, keep debug and 
     //timing the same on from each side's specification
 
-    // settings local_settings;
+    settings local_settings;
 
-    // int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
+    int sett_recv = recv(client_sock, &local_settings, sizeof(settings), MSG_WAITALL);
 
-    // if(sett_recv < 0) {
-    //     perror("Settings receive\n");
-    // } else {
-    //     printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
-    // }
+    if(sett_recv < 0) {
+        perror("Settings receive\n");
+    } else {
+        printf("Received settings from client with size %d. Expected size: %ld\n", sett_recv, sizeof(settings));
+    }
+    
+    bool mirrored_settings;
+    if(local_settings.ack_type != _settings.ack_type) {
+        mirrored_settings = false;
+        send(client_sock, &mirrored_settings, sizeof(bool), 0);
+        printf("Mismatched ACK types, exiting...\n");
+        sleep(2);
+        exit(0);
+    } else {
+        mirrored_settings = true;
+        send(client_sock, &mirrored_settings, sizeof(bool), 0);
+    }
 
     // _settings.ack_type = local_settings.ack_type;
 
@@ -625,7 +657,7 @@ void *tcp_thread_sack(void* sock) {
             printf("TCP: Attempting receive of ack array from client\n");
 
             int eval = recv(client_sock, ack.sack, sections * sizeof(ack.sack[0]), MSG_WAITALL);
-            printf("Ack array size: %d\n", eval);
+            printf("TCP: Ack array size: %d\n", eval);
 
             printf("TCP: Ack array received from client\n");
 
@@ -669,10 +701,6 @@ void *udp_thread_sack(void* sock) {
     //can work with ack array after this
 
     memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
-
-    for(int i = 0; i < sections; i++) {
-        printf("%d\n", ack.sack[i]);
-    }
     
     while(1) {
         pthread_mutex_lock(&mutex2);
@@ -734,7 +762,11 @@ void *udp_thread_sack(void* sock) {
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
 
-        sleep(.001);
+        // sleep(.001);
+
+        while(all_sent) {
+            sched_yield();
+        }
     }
 }
 

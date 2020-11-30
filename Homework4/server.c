@@ -10,7 +10,7 @@
 #include <semaphore.h> 
 #include <stdbool.h>
 
-#define server_IP "130.111.46.105" //130.111.46.105 10.0.2.15
+#define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
 #define server_PORT 45022
 #define NUM_BIND_TRIES 5
 #define ARR_SIZE 10000
@@ -183,11 +183,6 @@ void *tcp_thread(void* sock) {
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
-
-            while(!r) {
-            }
-
-            r = false;
         }
     }
 }
@@ -279,8 +274,8 @@ void *udp_thread(void* sock) {
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
 
-        r = true;
-
-        while(all_sent) {}
+        while(all_sent) {
+            sched_yield();
+        }
     }
 }

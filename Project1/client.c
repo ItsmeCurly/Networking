@@ -108,10 +108,12 @@ int main(int argc, char *argv[])
             if (strcmp(argv[i + 1], "neg") == 0)
             {
                 ack_type = negative;
+                printf("0\n");
             }
             else if (strcmp(argv[i + 1], "sel") == 0)
             {
                 ack_type = selective;
+                printf("1\n");
             }
         }
         else if (strcmp(argv[i], "-debug") == 0) {
@@ -254,16 +256,24 @@ void *tcp_thread_nack(void *sock)
 
     printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-    // int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
+    int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
 
-    // if (sett_send < 0)
-    // {
-    //     perror("TCP: Settings send\n");
-    // }
-    // else
-    // {
-    //     printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
-    // }
+    if (sett_send < 0)
+    {
+        perror("TCP: Settings send\n");
+    }
+    else
+    {
+        printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
+    }
+    bool mirrored_settings;
+    int ms_recv = recv(tcp_sock, &mirrored_settings, sizeof(bool), MSG_WAITALL);
+
+    if (!mirrored_settings) {
+        printf("Mismatched ACK types, exiting...\n");
+        sleep(2);
+        exit(0);
+    }
 
     int fs_recv = recv(tcp_sock, &file_size, sizeof(int), MSG_WAITALL);
 
@@ -512,16 +522,27 @@ void *tcp_thread_sack(void *sock)
 
     printf("TCP: Successfully connected with %s at port %d\n", inet_ntoa(server.sin_addr), htons(server.sin_port));
 
-    // int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
+    int sett_send = send(tcp_sock, &_settings, sizeof(settings), 0);
 
-    // if (sett_send < 0)
-    // {
-    //     perror("TCP: Settings send\n");
-    // }
-    // else
-    // {
-    //     printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
-    // }
+    if (sett_send < 0)
+    {
+        perror("TCP: Settings send\n");
+    }
+    else
+    {
+        printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", sett_send, sizeof(settings));
+    }
+
+    bool mirrored_settings;
+    int ms_recv = recv(tcp_sock, &mirrored_settings, sizeof(bool), MSG_WAITALL);
+
+    if (!mirrored_settings) {
+        printf("Mismatched ACK types, exiting...\n");
+        sleep(2);
+        exit(0);
+    }
+
+    
 
     int fs_recv = recv(tcp_sock, &file_size, sizeof(int), MSG_WAITALL);
 
@@ -531,7 +552,7 @@ void *tcp_thread_sack(void *sock)
     }
     else
     {
-        printf("TCP: Received file size from server with size %d. Expected size: %ld\n", fs_recv, sizeof(settings));
+        printf("TCP: Received file size from server with size %d. Expected size: %ld\n", fs_recv, sizeof(int));
     }
 
     if (DEBUG)
