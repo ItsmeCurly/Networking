@@ -10,7 +10,7 @@
 #include <semaphore.h> 
 #include <stdbool.h>
 
-#define server_IP "130.111.46.105" //130.111.46.105 10.0.2.15
+#define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
 #define server_PORT 45022
 #define NUM_BIND_TRIES 5
 #define ARR_SIZE 10000
@@ -26,6 +26,7 @@ struct msg {
 
 pthread_mutex_t mutex1;
 pthread_mutex_t mutex2; //figure out naming
+pthread_mutex_t mutex3;
 
 int ack[ARR_SIZE];
 
@@ -108,6 +109,8 @@ int main(int argc, char *argv[]) {
 
     pthread_mutex_init(&mutex1, NULL);
     pthread_mutex_init(&mutex2, NULL); //error checking
+    pthread_mutex_init(&mutex3, NULL);
+
     
     //initialize and start threads
 
@@ -152,6 +155,8 @@ void *tcp_thread(void* sock) {
 
     pthread_mutex_lock(&mutex1);
     pthread_mutex_unlock(&mutex1);
+
+    int attp = 0;
 
     while (!done) {
         pthread_mutex_lock(&mutex3);

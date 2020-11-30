@@ -14,7 +14,7 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -153,7 +153,7 @@ void *tcp_thread(void* sock) {
         // printf("TCP: Mutex1 unlocked\n");
         // pthread_mutex_unlock(&mutex1);   
 
-        // sleep(.01);
+        sleep(.01);
     }
 }
 
@@ -187,6 +187,14 @@ void *udp_thread(void* sock) {
     while(1) {
         printf("UDP: Begin receive loop\n");
         while(1) {
+            if(all_sent) {
+                printf("UDP: End receive loop\n");
+                all_sent = false;
+                attempts+=1;
+                
+                break;
+            }
+
             slen = sizeof(struct sockaddr_in);
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &server, &slen);
@@ -199,14 +207,6 @@ void *udp_thread(void* sock) {
             
             recv_arr[index] = m_msg.val;
             ack[index] = 1;
-
-            if(all_sent) {
-                printf("UDP: End receive loop\n");
-                all_sent = false;
-                attempts+=1;
-                
-                break;
-            }
 
             prev_msg = m_msg;
         }

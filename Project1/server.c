@@ -534,7 +534,7 @@ void *udp_thread_nack(void* sock) {
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
 
-        sleep(.001);
+        sleep(.01);
     }
 }
 
