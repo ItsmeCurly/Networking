@@ -16,8 +16,8 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "10.0.2.15"
-// #define server_IP "130.111.46.105"
+// #define server_IP "10.0.2.15"
+#define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
