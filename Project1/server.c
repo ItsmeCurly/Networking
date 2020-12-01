@@ -398,7 +398,7 @@ void *tcp_thread_nack(void* sock) {
             }
             if (DEBUG)
             {
-                printf("TCP: NACK size %d | Expected size: %ld\n | Value: ", size_recv, sizeof(ack.nack->size), ack.nack->size));
+                printf("TCP: NACK size %d | Expected size: %ld\n | Value: %d", size_recv, sizeof(ack.nack->size), ack.nack->size);
             }
 
             int top_recv = recv(client_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
