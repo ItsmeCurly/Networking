@@ -90,7 +90,7 @@ bool udp_ready = false, tcp_ready = false, client_receiving = false;
 
 struct _ack {
     int* sack;
-    stack* nack;
+    int* nack;
 } ack;
 
 int main(int argc, char *argv[])
@@ -305,10 +305,10 @@ void *tcp_thread_nack(void *sock)
 
     sections = (int)_sections;
 
-    ack.nack = create_stack(sections);
+    ack.nack = malloc((int)sections * sizeof(int));
 
-    for (int i = 0; i < sections; i++) {
-        push(ack.nack, i, true);
+    for(int i = 0; i < sections; i++) {
+        ack.nack[i] = i;
     }
 
     printf("TCP: Mutex1 unlocked\n");
@@ -358,30 +358,38 @@ void *tcp_thread_nack(void *sock)
             }
         }
 
-        ack.nack = create_stack(estimate_size);
+        for (int i = 0; i < sections; i++) {
+            ack.nack[i] = -1;
+        }
+
+        int index = 0;
 
         for (int i = 0; i < sections; i++) {
             if(!ack.sack[i]) {
-                push(ack.nack, i, true);
+                ack.nack[index++] = i;
             }
         }
 
+        for (int i = 0; i < sections; i++) {
+            printf("%d ", ack.nack[i]);
+        }
+
+        printf("\n");
+
         printf("TCP: Sending back acknowledgement array\n");
 
-        send(tcp_sock, &ack.nack->size, sizeof(ack.nack->size), 0);
-        send(tcp_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
-        send(tcp_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
-
-        printf("Sent %d, %d\n", ack.nack->size, ack.nack->top_index);
+        // send(tcp_sock, &ack.nack->size, sizeof(ack.nack->size), 0);
+        // send(tcp_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
+        send(tcp_sock, ack.nack, sections * sizeof(int), 0);
 
         printf("TCP: Ack array sent\n");
 
-        bool all_received = check_nack();
+        // bool all_received = check_nack();
 
-        if (all_received)
-        {
-            done = true;
-        }
+        // if (all_received)
+        // {
+        //     done = true;
+        // }
         
         printf("TCP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
@@ -414,11 +422,8 @@ void *udp_thread_nack(void *sock)
 
     //set ack array depending on number of sections the file is broken up into
 
-    ack.nack = create_stack(sections);
-
-    for (int i = 0; i < sections; i++) {
-        push(ack.nack, i, true);
-    }
+    // ack.nack = malloc((int)sections * sizeof(int));
+    // memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
 
     ack.sack = malloc((int)sections * sizeof(int));
     memset(ack.sack, 0, sections * sizeof(ack.sack[0]));
@@ -445,14 +450,13 @@ void *udp_thread_nack(void *sock)
 
         while (1)
         {
-            client_receiving = true;
             if (all_sent)
             {
                 printf("UDP: End receive loop\n");
 
-                pthread_mutex_lock(&mutex2);
-                printf("UDP: Mutex2 locked and unlocked\n");
-                pthread_mutex_unlock(&mutex2);
+                // pthread_mutex_lock(&mutex2);
+                // printf("UDP: Mutex2 locked and unlocked\n");
+                // pthread_mutex_unlock(&mutex2);
 
                 // printf("UDP: Nack array size: %d/%d\n", (ack.nack->top_index)+1, sections);
 
@@ -500,8 +504,6 @@ void *udp_thread_nack(void *sock)
 
             prev_msg = m_msg;
         }
-
-        free(ack.nack);
 
         bool all_received = check_sack();
 
@@ -769,10 +771,10 @@ int count_sack()
     return received;
 }
 
-bool check_nack()
-{
-    return is_empty(ack.nack);
-}
+// bool check_nack()
+// {
+//     return is_empty(ack.nack);
+// }
 
 stack* create_stack(unsigned int size){
     stack* new_stack = (stack*) malloc(sizeof(stack*));
