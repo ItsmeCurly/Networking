@@ -394,8 +394,8 @@ void *tcp_thread_nack(void *sock)
         while(!client_receiving) {
             sched_yield();
         }
-
-        send(tcp_sock, &client_receiving, sizeof(bool), 0);
+        int msg = 5;
+        send(tcp_sock, &msg, sizeof(int), 0);
 
         printf("Client receiving\n");
     }

@@ -448,8 +448,11 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
+            int msg;
+            
+            rdy_recv = recv(client_sock, &msg, sizeof(int), 0);
 
-            rdy_recv = recv(client_sock, &temp, sizeof(bool), 0);
+            printf("%d\n", msg);
 
             printf("Client receiving\n");
         }
