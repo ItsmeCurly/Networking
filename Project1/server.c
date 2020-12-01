@@ -398,7 +398,7 @@ void *tcp_thread_nack(void* sock) {
             }
             if (DEBUG)
             {
-                printf("TCP: NACK size %d | Expected size: %ld\n | Value: %d", size_recv, sizeof(ack.nack->size), ack.nack->size);
+                printf("TCP: NACK size %d | Expected size: %ld | Value: %d\n", size_recv, sizeof(ack.nack->size), ack.nack->size);
             }
 
             int top_recv = recv(client_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
@@ -413,7 +413,7 @@ void *tcp_thread_nack(void* sock) {
             }
             if (DEBUG)
             {
-                printf("TCP: top_index size %d | Expected size: %ld\n | Value: %d", top_recv, sizeof(ack.nack->top_index), ack.nack->top_index);
+                printf("TCP: top_index size %d | Expected size: %ld | Value: %d\n", top_recv, sizeof(ack.nack->top_index), ack.nack->top_index);
             }
 
             int arr_recv = recv(client_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
