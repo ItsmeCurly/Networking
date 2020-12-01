@@ -14,7 +14,7 @@
 
 // #define server_IP "10.0.2.15"
 #define server_IP "130.111.46.105"
-#define server_PORT 45024
+#define server_PORT 45022
 
 #define NUM_BIND_TRIES 15
 #define MESSAGE_SIZE 4096
@@ -500,8 +500,6 @@ void *udp_thread_nack(void* sock) {
         bool all_received = true;
         
         printf("UDP: Enter send loop\n");
-
-        int loop_end;
         
         // while(!is_empty(ack.nack)) {
         //     all_received = false;
@@ -518,11 +516,11 @@ void *udp_thread_nack(void* sock) {
         //         perror("UDP: A message was not sent correctly");
         //     }
         // }
-        for(int i = 0; i < ack.nack->top_index; i++) {
-            printf("%d ", ack.nack->arr[i]);
-        }
+        // for(int i = 0; i < ack.nack->top_index; i++) {
+        //     printf("%d ", ack.nack->arr[i]);
+        // }
 
-        printf("\n");
+        // printf("\n");
         printf("%d\n", ack.nack->top_index);
         for (int i = 0; i <= ack.nack->top_index; i++) {
             all_received = false;

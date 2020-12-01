@@ -18,7 +18,7 @@
 
 // #define server_IP "10.0.2.15"
 #define server_IP "130.111.46.105"
-#define server_PORT 45024
+#define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
 #define MESSAGE_SIZE 4096
@@ -263,7 +263,7 @@ void *tcp_thread_nack(void *sock)
 
     if (sett_send < 0)
     {
-        perror("TCP: Settings send\n");
+        perror("TCP: Settings send");
     }
     else
     {
@@ -282,7 +282,7 @@ void *tcp_thread_nack(void *sock)
 
     if (fs_recv < 0)
     {
-        perror("TCP: File size receive\n");
+        perror("TCP: File size receive");
     }
     else
     {
@@ -377,10 +377,9 @@ void *tcp_thread_nack(void *sock)
         send(tcp_sock, &ack.nack->top_index, sizeof(ack.nack->top_index), 0);
         send(tcp_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
 
+        printf("Sent %d, %d\n", ack.nack->size, ack.nack->top_index);
+
         printf("TCP: Ack array sent\n");
-        
-        printf("TCP: Mutex2 unlocked\n");
-        pthread_mutex_unlock(&mutex2);
 
         bool all_received = check_nack();
 
@@ -388,14 +387,17 @@ void *tcp_thread_nack(void *sock)
         {
             done = true;
         }
+        
+        printf("TCP: Mutex2 unlocked\n");
+        pthread_mutex_unlock(&mutex2);
 
         while(!client_receiving) {
             sched_yield();
         }
 
-        printf("Client receiving\n");
-
         send(tcp_sock, &client_receiving, sizeof(bool), 0);
+
+        printf("Client receiving\n");
     }
 }
 
@@ -490,7 +492,7 @@ void *udp_thread_nack(void *sock)
 
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum)
+            if (prev_msg.chunkNum == m_msg.chunkNum || ack.sack[m_msg.chunkNum])
             {                                                               //check if value is previous message received
                 continue;                                                   //or already in the ack array, if so, continue
             }
@@ -514,7 +516,7 @@ void *udp_thread_nack(void *sock)
 
         free(ack.nack);
 
-        bool all_received = check_sack(); //TODO: Change to NACK
+        bool all_received = check_sack();
 
         if (all_received)
         {
