@@ -12,7 +12,8 @@
 #include <math.h>
 #include <time.h>
 
-#define server_IP "130.111.46.105" //130.111.46.105 10.0.2.15
+// #define server_IP "10.0.2.15"
+#define server_IP "130.111.46.105"
 #define server_PORT 45024
 
 #define NUM_BIND_TRIES 15
@@ -329,8 +330,6 @@ void *tcp_thread_nack(void* sock) {
         mirrored_settings = true;
         send(client_sock, &mirrored_settings, sizeof(bool), 0);
     }
-
-    sleep(5);
 
     //send file size over to client
 
@@ -744,7 +743,7 @@ void *udp_thread_sack(void* sock) {
             double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
 
             if(TIME) {
-                printf("SACK transferral took %f seconds on the client side\n", execute_time);
+                printf("SACK transferral took %f seconds on the server side\n", execute_time);
             }
 
             done = true;
