@@ -12,7 +12,7 @@
 #include <math.h>
 #include <time.h>
 
-#define server_IP "10.0.2.15" //130.111.46.105 10.0.2.15
+#define server_IP "130.111.46.105" //130.111.46.105 10.0.2.15
 #define server_PORT 45024
 
 #define NUM_BIND_TRIES 15
