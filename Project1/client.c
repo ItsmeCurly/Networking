@@ -16,8 +16,8 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -329,12 +329,6 @@ void *tcp_thread_nack(void *sock)
         printf("TCP: Waiting on all_sent message\n");
         
         int as_recv = recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
-        
-        pthread_mutex_lock(&mutex2);
-
-        printf("TCP: Mutex2 locked\n");
-
-        client_receiving = false;
 
         if (as_recv < 0)
         {
@@ -348,14 +342,6 @@ void *tcp_thread_nack(void *sock)
         {
             printf("TCP: All sent size from server: %d bytes | Expected: %ld\n", as_recv, sizeof(bool));
             printf("TCP: All sent value: %d | Expected: %d\n", all_sent, true);
-        }
-
-        int estimate_size = 0;
-
-        for (int i = 0; i < sections; i++) {
-            if(!ack.sack[i]) {
-                estimate_size+=1;
-            }
         }
 
         for (int i = 0; i < sections; i++) {
@@ -383,13 +369,6 @@ void *tcp_thread_nack(void *sock)
         send(tcp_sock, ack.nack, sections * sizeof(int), 0);
 
         printf("TCP: Ack array sent\n");
-
-        // bool all_received = check_nack();
-
-        // if (all_received)
-        // {
-        //     done = true;
-        // }
         
         printf("TCP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);

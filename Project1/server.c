@@ -12,8 +12,8 @@
 #include <math.h>
 #include <time.h>
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 15
@@ -382,39 +382,6 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Attempting receive of NACK array from client\n");
 
-            // int ack_size_recv;
-
-            // int size_recv = recv(client_sock, &ack_size_recv, sizeof(int), 0);
-            
-            // if (size_recv < 0)
-            // {
-            //     perror("TCP: Size receive");
-            //     exit(0);
-            // }
-            // else
-            // {
-            //     printf("TCP: Received NACK size from client\n");
-            // }
-            // if (DEBUG)
-            // {
-            //     printf("TCP: NACK size %d | Expected size: %ld | Value: %d\n", size_recv, sizeof(ack.nack->size), ack.nack->size);
-            // }
-
-            // int top_recv = recv(client_sock, &top_index_recv, sizeof(int), 0);
-            // if (top_recv < 0)
-            // {
-            //     perror("TCP: top_index receive");
-            //     exit(0);
-            // }
-            // else
-            // {
-            //     printf("TCP: Received NACK top_index from client\n");
-            // }
-            // if (DEBUG)
-            // {
-            //     printf("TCP: top_index size %d | Expected size: %ld | Value: %d\n", top_recv, sizeof(ack.nack->top_index), ack.nack->top_index);
-            // }
-
             int arr_recv = recv(client_sock, ack.nack, sections * sizeof(int), 0);
             
             if (arr_recv < 0)
@@ -438,9 +405,6 @@ void *tcp_thread_nack(void* sock) {
                 }
                 printf("\n");
             }
-            
-
-            printf("TCP: Ack array received from client\n");
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
@@ -534,8 +498,6 @@ void *udp_thread_nack(void* sock) {
                 perror("UDP: A message was not sent correctly");
             }
         }
-        all_sent = true;
-
         if (all_received) {
             done = true;
             pthread_mutex_unlock(&mutex2);
@@ -556,6 +518,8 @@ void *udp_thread_nack(void* sock) {
             printf("Transferral: All done\n");
             exit(1);
         }
+
+        all_sent = true;
 
         printf("UDP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
@@ -664,8 +628,30 @@ void *tcp_thread_sack(void* sock) {
 
             printf("TCP: Attempting receive of ack array from client\n");
 
-            int eval = recv(client_sock, ack.sack, sections * sizeof(ack.sack[0]), MSG_WAITALL);
-            printf("TCP: Ack array size: %d\n", eval);
+            int arr_recv = recv(client_sock, ack.sack, sections * sizeof(int), 0);
+            printf("TCP: Ack array size: %d\n", arr_recv);
+
+            if (arr_recv < 0)
+            {
+                perror("TCP: ACK arr receive");
+                exit(0);
+            }
+            else
+            {
+                printf("TCP: Received ACK arr from client\n");
+            }
+            if (DEBUG)
+            {
+                printf("TCP: ACK arr size %d | Expected size: %ld\n", arr_recv, sections * sizeof(int));
+            }
+
+            if(DEBUG) {
+                printf("Values remaining: ");
+                for(int i = 0; i < sections; i++) {
+                    printf("%d ", ack.sack[i]);
+                }
+                printf("\n");
+            }
 
             printf("TCP: Ack array received from client\n");
 
@@ -740,9 +726,9 @@ void *udp_thread_sack(void* sock) {
                 perror("UDP: A message was not sent correctly");
             }
             
-            if(DEBUG) {
-                printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
-            }
+            // if(DEBUG) {
+            //     printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
+            // }
         }
         all_sent = true;
 
