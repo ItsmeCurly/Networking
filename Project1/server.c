@@ -12,8 +12,8 @@
 #include <math.h>
 #include <time.h>
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45024
 
 #define NUM_BIND_TRIES 15
@@ -368,6 +368,16 @@ void *tcp_thread_nack(void* sock) {
 
     pthread_mutex_unlock(&mutex3);
 
+    bool temp;
+
+    int rdy_recv = recv(client_sock, &temp, sizeof(bool), 0);
+
+    printf("Client is ready\n");
+
+    rdy_recv = recv(client_sock, &temp, sizeof(bool), 0);
+
+    printf("Client receiving\n");
+
     while (!done) {
         if (all_sent) {
             pthread_mutex_lock(&mutex2);
@@ -388,7 +398,7 @@ void *tcp_thread_nack(void* sock) {
             }
             else
             {
-                printf("TCP: Received NACK size from server\n");
+                printf("TCP: Received NACK size from client\n");
             }
             if (DEBUG)
             {
@@ -403,7 +413,7 @@ void *tcp_thread_nack(void* sock) {
             }
             else
             {
-                printf("TCP: Received NACK top_index from server\n");
+                printf("TCP: Received NACK top_index from client\n");
             }
             if (DEBUG)
             {
@@ -418,7 +428,7 @@ void *tcp_thread_nack(void* sock) {
             }
             else
             {
-                printf("TCP: Received NACK arr from server\n");
+                printf("TCP: Received NACK arr from client\n");
             }
             if (DEBUG)
             {
@@ -439,7 +449,9 @@ void *tcp_thread_nack(void* sock) {
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
 
-            sleep(.001);
+            rdy_recv = recv(client_sock, &temp, sizeof(bool), 0);
+
+            printf("Client receiving\n");
         }
     }
 }
@@ -506,6 +518,12 @@ void *udp_thread_nack(void* sock) {
         //         perror("UDP: A message was not sent correctly");
         //     }
         // }
+        for(int i = 0; i < ack.nack->top_index; i++) {
+            printf("%d ", ack.nack->arr[i]);
+        }
+
+        printf("\n");
+        printf("%d\n", ack.nack->top_index);
         for (int i = 0; i <= ack.nack->top_index; i++) {
             all_received = false;
 
@@ -522,7 +540,6 @@ void *udp_thread_nack(void* sock) {
             }
             
             // if(DEBUG) {
-            //     printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
             // }
         }
         all_sent = true;

@@ -16,8 +16,8 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45024
 
 #define NUM_BIND_TRIES 5
@@ -85,6 +85,8 @@ pthread_mutex_t mutex2; //figure out naming
 bool all_sent = false, done = false;
 
 int file_size, sections;
+
+bool udp_ready = false, tcp_ready = false, client_receiving = false;
 
 struct _ack {
     int* sack;
@@ -312,6 +314,22 @@ void *tcp_thread_nack(void *sock)
     printf("TCP: Mutex1 unlocked\n");
     pthread_mutex_unlock(&mutex1);
 
+    tcp_ready = true;
+
+    while(!udp_ready) {
+        sched_yield();
+    }
+
+    send(tcp_sock, &tcp_ready, sizeof(bool), 0);
+
+    printf("Client threads initialized\n");
+
+    while(!client_receiving) {
+        sched_yield();
+    }
+
+    send(tcp_sock, &client_receiving, sizeof(bool), 0);
+
     while (!done)
     {
         printf("TCP: Waiting on all_sent message\n");
@@ -320,6 +338,8 @@ void *tcp_thread_nack(void *sock)
         pthread_mutex_lock(&mutex2);
 
         printf("TCP: Mutex2 locked\n");
+
+        client_receiving = false;
 
         if (as_recv < 0)
         {
@@ -368,6 +388,14 @@ void *tcp_thread_nack(void *sock)
         {
             done = true;
         }
+
+        while(!client_receiving) {
+            sched_yield();
+        }
+
+        printf("Client receiving\n");
+
+        send(tcp_sock, &client_receiving, sizeof(bool), 0);
     }
 }
 
@@ -415,6 +443,8 @@ void *udp_thread_nack(void *sock)
     int received[sections];
     int received_array_index = 0;
 
+    udp_ready = true;
+
     while (1)
     {
         printf("UDP: Begin receive loop\n");
@@ -426,6 +456,7 @@ void *udp_thread_nack(void *sock)
 
         while (1)
         {
+            client_receiving = true;
             if (all_sent)
             {
                 printf("UDP: End receive loop\n");
