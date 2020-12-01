@@ -382,7 +382,7 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Attempting receive of NACK array from client\n");
 
-            int arr_recv = recv(client_sock, ack.nack, sections * sizeof(int), 0);
+            int arr_recv = recv(client_sock, ack.nack, sections * sizeof(int), MSG_WAITALL);
             
             if (arr_recv < 0)
             {
