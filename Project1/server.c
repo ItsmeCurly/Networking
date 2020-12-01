@@ -452,7 +452,7 @@ void *tcp_thread_nack(void* sock) {
             
             rdy_recv = recv(client_sock, &msg, sizeof(int), 0);
 
-            printf("%d\n", msg);
+            printf("msg: %d\n", msg);
 
             printf("Client receiving\n");
         }
