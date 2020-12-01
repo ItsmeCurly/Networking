@@ -324,15 +324,10 @@ void *tcp_thread_nack(void *sock)
 
     printf("Client threads initialized\n");
 
-    while(!client_receiving) {
-        sched_yield();
-    }
-
-    send(tcp_sock, &client_receiving, sizeof(bool), 0);
-
     while (!done)
     {
         printf("TCP: Waiting on all_sent message\n");
+        
         int as_recv = recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
         
         pthread_mutex_lock(&mutex2);
@@ -390,14 +385,6 @@ void *tcp_thread_nack(void *sock)
         
         printf("TCP: Mutex2 unlocked\n");
         pthread_mutex_unlock(&mutex2);
-
-        while(!client_receiving) {
-            sched_yield();
-        }
-        int msg = 5;
-        send(tcp_sock, &msg, sizeof(int), 0);
-
-        printf("Client receiving\n");
     }
 }
 

@@ -374,10 +374,6 @@ void *tcp_thread_nack(void* sock) {
 
     printf("Client is ready\n");
 
-    rdy_recv = recv(client_sock, &temp, sizeof(bool), 0);
-
-    printf("Client receiving\n");
-
     while (!done) {
         if (all_sent) {
             pthread_mutex_lock(&mutex2);
@@ -421,6 +417,7 @@ void *tcp_thread_nack(void* sock) {
             }
 
             int arr_recv = recv(client_sock, ack.nack->arr, ack.nack->size * sizeof(int), 0);
+            
             if (arr_recv < 0)
             {
                 perror("TCP: NACK arr receive");
@@ -448,13 +445,6 @@ void *tcp_thread_nack(void* sock) {
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
-            int msg;
-            
-            rdy_recv = recv(client_sock, &msg, sizeof(int), 0);
-
-            printf("msg: %d\n", msg);
-
-            printf("Client receiving\n");
         }
     }
 }
