@@ -496,6 +496,8 @@ void *udp_thread_nack(void* sock) {
             fseek(fp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
             int ret_val = fread(m_msg.val, sizeof(char), MESSAGE_SIZE, fp);
             
+            m_msg.msg_size = ret_val;
+
             int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
 
             if(msg_send < 0) {
@@ -725,10 +727,6 @@ void *udp_thread_sack(void* sock) {
 
             fseek(fp, i * MESSAGE_SIZE, SEEK_SET);
             int ret_val = fread(m_msg.val, sizeof(char), MESSAGE_SIZE, fp);
-
-            if(m_msg.chunkNum == 1562) {
-                printf("%d, %s, %ld\n", ret_val, m_msg.val, sizeof(m_msg.val));
-            }
 
             m_msg.msg_size = ret_val;
             

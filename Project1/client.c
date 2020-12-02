@@ -97,7 +97,7 @@ struct _ack {
 } ack;
 
 FILE* outfp;
-char* file_name = "new.txt";
+char* file_name = "out.txt";
 
 int main(int argc, char *argv[])
 {
@@ -448,9 +448,9 @@ void *udp_thread_nack(void *sock)
 
                 // printf("UDP: Nack array size: %d/%d\n", (ack.nack->top_index)+1, sections);
 
-                printf("UDP: Received %d values\n", received_array_index);
+                printf("UDP: Received %d value(s)\n", received_array_index);
 
-                printf("UDP: Values received: ");
+                printf("UDP: New values received: ");
                 for (int k = 0; k < received_array_index; k++)
                 {
                     if (received[k] != -1)
@@ -483,7 +483,7 @@ void *udp_thread_nack(void *sock)
             ack.sack[m_msg.chunkNum] = 1;
 
             fseek(outfp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
-            fwrite(m_msg.val, sizeof(char), MESSAGE_SIZE, outfp);
+            fwrite(m_msg.val, m_msg.msg_size, sizeof(char), outfp);
 
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
@@ -681,10 +681,6 @@ void *udp_thread_sack(void *sock)
 
             fseek(outfp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
             int ret_val = fwrite(m_msg.val, sizeof(char), m_msg.msg_size, outfp);
-
-            if(m_msg.chunkNum == 1562) {
-                printf("%d, %s, %ld\n", ret_val, m_msg.val, sizeof(m_msg.val));
-            }
 
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
