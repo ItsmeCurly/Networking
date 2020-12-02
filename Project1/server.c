@@ -12,8 +12,8 @@
 #include <math.h>
 #include <time.h>
 
-#define server_IP "10.0.2.15"
-// #define server_IP "130.111.46.105"
+// #define server_IP "10.0.2.15"
+#define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 15
@@ -48,6 +48,7 @@ settings _settings;
 
 struct msg {
     int chunkNum;
+    int msg_size;
     char val[MESSAGE_SIZE];
 };
 
@@ -725,7 +726,11 @@ void *udp_thread_sack(void* sock) {
             fseek(fp, i * MESSAGE_SIZE, SEEK_SET);
             int ret_val = fread(m_msg.val, sizeof(char), MESSAGE_SIZE, fp);
 
-            // printf("%d\n%s\n", m_msg.chunkNum, m_msg.val);
+            if(m_msg.chunkNum == 1562) {
+                printf("%d, %s, %ld\n", ret_val, m_msg.val, sizeof(m_msg.val));
+            }
+
+            m_msg.msg_size = ret_val;
             
             int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
             if(msg_send < 0) {

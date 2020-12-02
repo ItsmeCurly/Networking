@@ -16,8 +16,8 @@
 #define client_IP "10.0.2.15"
 #define client_PORT 45023
 
-#define server_IP "10.0.2.15"
-// #define server_IP "130.111.46.105"
+// #define server_IP "10.0.2.15"
+#define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 5
@@ -53,6 +53,7 @@ typedef struct setting_s settings;
 struct msg
 {
     int chunkNum;
+    int msg_size;
     char val[MESSAGE_SIZE];
 };
 
@@ -660,8 +661,6 @@ void *udp_thread_sack(void *sock)
 
             slen = sizeof(struct sockaddr_in);
 
-            // printf("%ld", sizeof(m_msg
-
             recvfrom(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *)&server, &slen);
 
             // printf("%d\n%s\n", m_msg.chunkNum, m_msg.val);
@@ -670,7 +669,6 @@ void *udp_thread_sack(void *sock)
             {             //check if value is previous message received
                 continue; //or already in the ack array, if so, continue
             }
-
             if(m_msg.chunkNum == -1) {
                 continue;
             }
@@ -682,7 +680,11 @@ void *udp_thread_sack(void *sock)
             // printf("Writing %d\n", m_msg.chunkNum);
 
             fseek(outfp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
-            fwrite(m_msg.val, sizeof(char), MESSAGE_SIZE, outfp);
+            int ret_val = fwrite(m_msg.val, sizeof(char), m_msg.msg_size, outfp);
+
+            if(m_msg.chunkNum == 1562) {
+                printf("%d, %s, %ld\n", ret_val, m_msg.val, sizeof(m_msg.val));
+            }
 
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
