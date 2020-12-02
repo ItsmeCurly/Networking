@@ -12,12 +12,14 @@
 #include <math.h>
 #include <time.h>
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 15
 #define MESSAGE_SIZE 4096
+
+#define NANOSECONDS_PER_SECOND 1E9
 
 void *tcp_thread_sack(void *ptr);
 void *udp_thread_sack(void *ptr);
@@ -119,7 +121,7 @@ int main(int argc, char *argv[]) {
 
     _settings = (settings){ack_type, DEBUG, TIME};
 
-    if(DEBUG) {
+    if (DEBUG) {
         printf("DEBUG: Ack type: %d\n", ack_type);
     }
 
@@ -228,13 +230,13 @@ int main(int argc, char *argv[]) {
     if(_settings.ack_type == selective) {
         rc = pthread_create(&udp, NULL, udp_thread_sack, (void*) (intptr_t) udp_sock);
 
-        if(DEBUG) {
+        if (DEBUG) {
             printf("Started udp_thread_sack\n");
         }
     } else {
         rc = pthread_create(&udp, NULL, udp_thread_nack, (void*) (intptr_t) udp_sock);
 
-        if(DEBUG) {
+        if (DEBUG) {
             printf("Started udp_thread_nack\n");
         }
     }
@@ -251,13 +253,13 @@ int main(int argc, char *argv[]) {
     if(_settings.ack_type == selective) {
         rc = pthread_create(&tcp, NULL, tcp_thread_sack, (void*) (intptr_t) tcp_sock);
 
-        if(DEBUG) {
+        if (DEBUG) {
             printf("Started tcp_thread_sack\n");
         }
     } else {
         rc = pthread_create(&tcp, NULL, tcp_thread_nack, (void*) (intptr_t) tcp_sock);
 
-        if(DEBUG) {
+        if (DEBUG) {
             printf("Started tcp_thread_nack\n");
         }
     }
@@ -341,22 +343,20 @@ void *tcp_thread_nack(void* sock) {
         printf("TCP: Sent file size to client with size %d. Expected size: %ld\n", fs_send, sizeof(file_size));
     }
 
-    if(DEBUG) {
+    if (DEBUG) {
         printf("TCP: Sent file size to client: %d bytes\n", file_size);
     }
 
-    float _sections = file_size/MESSAGE_SIZE;
+    float _sections = file_size/(float)MESSAGE_SIZE;
 
-    if ((!roundf(_sections)) == _sections) {    //possibly check for tolerance value here
-        _sections = ceilf(_sections);
-    }
+    _sections = ceilf(_sections);
 
     sections = (int)_sections;
 
     ack.nack = malloc((int)sections * sizeof(int));
     memset(ack.nack, 0, sections * sizeof(ack.nack[0]));
 
-    if(DEBUG){
+    if (DEBUG){
         printf("Sections: %d, _sections: %f\n", sections, _sections);
     }
 
@@ -398,10 +398,12 @@ void *tcp_thread_nack(void* sock) {
                 printf("TCP: NACK arr size %d | Expected size: %ld\n", arr_recv, sections * sizeof(int));
             }
 
-            if(DEBUG) {
+            if (DEBUG) {
                 printf("Values remaining: ");
                 for(int i = 0; i < sections; i++) {
-                    printf("%d ", ack.nack[i]);
+                    if (ack.nack[i] != -1) {
+                        printf("%d ", ack.nack[i]);
+                    }
                 }
                 printf("\n");
             }
@@ -432,7 +434,8 @@ void *udp_thread_nack(void* sock) {
         exit(1);
     }
 
-    clock_t start = clock();
+    struct timespec start;
+    clock_gettime(CLOCK_REALTIME, &start);
 
     printf("UDP: Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
@@ -490,7 +493,7 @@ void *udp_thread_nack(void* sock) {
             m_msg.chunkNum = ack.nack[i];
 
             fseek(fp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
-            fread(m_msg.val, MESSAGE_SIZE, sizeof(char), fp);
+            int ret_val = fread(m_msg.val, sizeof(char), MESSAGE_SIZE, fp);
             
             int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
 
@@ -505,9 +508,10 @@ void *udp_thread_nack(void* sock) {
             pthread_mutex_destroy(&mutex1);
             pthread_mutex_destroy(&mutex2);
 
-            clock_t end = clock();
-            
-            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+            struct timespec end;
+            clock_gettime(CLOCK_REALTIME, &end);
+
+            double execute_time = (end.tv_sec + end.tv_nsec / NANOSECONDS_PER_SECOND) - (start.tv_sec + start.tv_nsec / NANOSECONDS_PER_SECOND);
 
             if(TIME) {
                 printf("NACK transferral took %f seconds on the server side\n", execute_time);
@@ -595,20 +599,19 @@ void *tcp_thread_sack(void* sock) {
         printf("TCP: Sent settings to server with size %d. Expected size: %ld\n", fs_send, sizeof(file_size));
     }
 
-    if(DEBUG) {
+    if (DEBUG) {
         printf("TCP: Sent file size to client: %d bytes\n", file_size);
     }
 
-    float _sections = file_size/MESSAGE_SIZE;
+    float _sections = file_size/(float)MESSAGE_SIZE;
 
-    if ((!roundf(_sections)) == _sections) {    //possibly check for tolerance value here
-        _sections = ceilf(_sections);
-    }
+    _sections = ceilf(_sections);
 
     sections = (int)_sections;
+
     ack.sack = malloc((int)sections * sizeof(int));
 
-    if(DEBUG){
+    if (DEBUG){
         printf("Sections: %d, _sections: %f\n", sections, _sections);
     }
 
@@ -628,7 +631,7 @@ void *tcp_thread_sack(void* sock) {
 
             printf("TCP: Attempting receive of ack array from client\n");
 
-            int arr_recv = recv(client_sock, ack.sack, sections * sizeof(int), 0);
+            int arr_recv = recv(client_sock, ack.sack, sections * sizeof(int), MSG_WAITALL);
             printf("TCP: Ack array size: %d\n", arr_recv);
 
             if (arr_recv < 0)
@@ -645,7 +648,7 @@ void *tcp_thread_sack(void* sock) {
                 printf("TCP: ACK arr size %d | Expected size: %ld\n", arr_recv, sections * sizeof(int));
             }
 
-            if(DEBUG) {
+            if (DEBUG) {
                 printf("Values remaining: ");
                 for(int i = 0; i < sections; i++) {
                     printf("%d ", ack.sack[i]);
@@ -680,7 +683,8 @@ void *udp_thread_sack(void* sock) {
         printf("UDP: Error receiving message from client");
         exit(1);
     }
-    clock_t start = clock();
+    struct timespec start;
+    clock_gettime(CLOCK_REALTIME, &start);
 
     printf("UDP: Initialization message received from %s at port %d \n", inet_ntoa(client.sin_addr), htons(client.sin_port));
 
@@ -719,23 +723,26 @@ void *udp_thread_sack(void* sock) {
             m_msg.chunkNum = i;
 
             fseek(fp, i * MESSAGE_SIZE, SEEK_SET);
-            fread(m_msg.val, MESSAGE_SIZE, sizeof(char), fp);
+            int ret_val = fread(m_msg.val, sizeof(char), MESSAGE_SIZE, fp);
+
+            // printf("%d\n%s\n", m_msg.chunkNum, m_msg.val);
             
             int msg_send = sendto(udp_sock, &m_msg, sizeof(m_msg), 0, (struct sockaddr *) &client, addrLen);
             if(msg_send < 0) {
                 perror("UDP: A message was not sent correctly");
             }
             
-            // if(DEBUG) {
+            // if (DEBUG) {
             //     printf("UDP: Sent message %d with payload size %d\n", i, msg_send);
             // }
         }
         all_sent = true;
 
         if (all_received) {
-            clock_t end = clock();
+            struct timespec end;
+            clock_gettime(CLOCK_REALTIME, &end);
 
-            double execute_time = (end-start)/(float)CLOCKS_PER_SEC;
+            double execute_time = (end.tv_sec + end.tv_nsec / NANOSECONDS_PER_SECOND) - (start.tv_sec + start.tv_nsec / NANOSECONDS_PER_SECOND);
 
             if(TIME) {
                 printf("SACK transferral took %f seconds on the server side\n", execute_time);
@@ -790,7 +797,7 @@ void push(stack* stack, int val, bool allow_increase){
     }
 
     stack->arr[++stack->top_index] = val;
-    // if(DEBUG) {
+    // if (DEBUG) {
     //     printf("%d pushed to stack\n", val);
     // }
 }
