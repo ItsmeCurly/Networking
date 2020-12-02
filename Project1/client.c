@@ -750,13 +750,12 @@ void *udp_thread_sack(void *sock)
             done = true;
             printf("Transferral: All done. Attempts made at sending: %d\n", attempts);
             fflush(stdout);
-
-            printf("closing\n");
+            
             fclose(outfp);
 
             pthread_mutex_destroy(&mutex1);
             pthread_mutex_destroy(&mutex2);
-
+            
             exit(1);
         }
     }

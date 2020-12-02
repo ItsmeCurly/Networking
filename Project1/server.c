@@ -12,8 +12,8 @@
 #include <math.h>
 #include <time.h>
 
-// #define server_IP "10.0.2.15"
-#define server_IP "130.111.46.105"
+#define server_IP "10.0.2.15"
+// #define server_IP "130.111.46.105"
 #define server_PORT 45022
 
 #define NUM_BIND_TRIES 15
@@ -87,6 +87,8 @@ FILE *fp;
 char* file_name = "BitMap.txt";
 int file_size;
 int sections;
+
+pthread_t udp, tcp;
 
 bool done = false, all_sent = false;
 
@@ -221,8 +223,6 @@ int main(int argc, char *argv[]) {
     pthread_mutex_init(&mutex4, NULL);
     
     //initialize and start threads
-
-    pthread_t udp, tcp;
     int rc;
 
     pthread_mutex_lock(&mutex4);
@@ -661,9 +661,9 @@ void *tcp_thread_sack(void* sock) {
 
             printf("TCP: Ack array received from client\n");
 
-            bool client_receiving;
+            // bool client_receiving;
 
-            recv(client_sock, &client_receiving, sizeof(bool), MSG_WAITALL);
+            // recv(client_sock, &client_receiving, sizeof(bool), MSG_WAITALL);
 
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
@@ -751,10 +751,6 @@ void *udp_thread_sack(void* sock) {
 
             double execute_time = (end.tv_sec + end.tv_nsec / NANOSECONDS_PER_SECOND) - (start.tv_sec + start.tv_nsec / NANOSECONDS_PER_SECOND);
 
-            if(TIME) {
-                printf("SACK transferral took %f seconds on the server side\n", execute_time);
-            }
-
             done = true;
             pthread_mutex_unlock(&mutex2);
 
@@ -763,8 +759,13 @@ void *udp_thread_sack(void* sock) {
 
             sleep(2);   //sleep to let tcp thread finish, it needs this to flush the sending/receiving of the acknowledgement array
 
+            if(TIME) {
+                printf("SACK transferral took %f seconds on the server side\n", execute_time);
+            }
+
             printf("Transferral: All done\n");
-            exit(1);
+            
+            break;
         }
 
         printf("UDP: Mutex2 unlocked\n");
