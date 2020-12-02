@@ -587,6 +587,7 @@ void *tcp_thread_sack(void *sock)
 
     while (!done)
     {
+
         printf("TCP: Waiting on all_sent message\n");
         recv(tcp_sock, &all_sent, sizeof(bool), MSG_WAITALL);
 
@@ -607,6 +608,13 @@ void *tcp_thread_sack(void *sock)
         {
             done = true;
         }
+        while(!client_receiving) {
+            sched_yield();
+        }
+        
+        send(tcp_sock, &client_receiving, sizeof(bool), 0);
+
+        client_receiving = false;
     }
 }
 
@@ -658,6 +666,8 @@ void *udp_thread_sack(void *sock)
             received[i] = -1;
         }
         int none_received = 0;
+
+        client_receiving = true;
         while (1)
         {
             if (all_sent)

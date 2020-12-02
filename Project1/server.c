@@ -661,6 +661,10 @@ void *tcp_thread_sack(void* sock) {
 
             printf("TCP: Ack array received from client\n");
 
+            bool client_receiving;
+
+            recv(client_sock, &client_receiving, sizeof(bool), MSG_WAITALL);
+
             printf("TCP: Mutex2 unlocked\n");
             pthread_mutex_unlock(&mutex2);
         }
