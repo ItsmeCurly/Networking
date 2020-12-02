@@ -608,13 +608,13 @@ void *tcp_thread_sack(void *sock)
         {
             done = true;
         }
-        while(!client_receiving) {
-            sched_yield();
-        }
+        // while(!client_receiving) {
+        //     sched_yield();
+        // }
         
-        send(tcp_sock, &client_receiving, sizeof(bool), 0);
+        // send(tcp_sock, &client_receiving, sizeof(bool), 0);
 
-        client_receiving = false;
+        // client_receiving = false;
     }
 }
 
