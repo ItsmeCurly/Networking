@@ -1,0 +1,34 @@
+Begin:
+
+Server initilization, instantiation of sockets and variables.
+
+Bind TCP and UDP sockets, create and run pthreads for TCP and UDP connections.
+
+Wait on UDP port for connection, listen on TCP port for incoming connection.
+
+Client initilization, instantiation of sockets and variables.
+
+Bind UDP socket, create and run pthreads for TCP and UDP connections.
+
+Connect to server over UDP connection to establish client connection. Use server 
+information from UDP thread to connect to server from client over TCP connection.
+
+Server will await client to finish initialization, in which the client will send a message
+over the TCP channel to signify it's done initialization. This is to ensure that the client is already
+ready to receive when the server begins sending messages.
+
+Server UDP thread will send all chunks of the file across UDP connection in a struct with other data including
+actual size of message(in bytes) and the chunkNum header. These are utilized in both the SACK and NACK implementation
+for writing to the output file.
+
+Upon sending all of the messages, the UDP thread will block and set the all_sent variable to true, in which the 
+server TCP thread will relay the all_sent message to the client's TCP thread.
+
+Upon receiving the all_sent message, the client will either 1) relay the SACK array if working under SACK or 2) 
+initialize the NACK array from the SACK array and send that over the TCP connection.
+
+After the client sends the ACK array back to the server, the server will loop through all the necessary messages
+that it has not sent yet in order to ensure the client receives all the chunks. In the meantime, the client will be
+writing to the output file.
+
+Upon all chunks arriving at the client, the server and client will both specify their execution time and exit.
