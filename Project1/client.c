@@ -24,6 +24,7 @@
 #define MESSAGE_SIZE 4096
 
 #define NANOSECONDS_PER_SECOND 1E9
+#define MAX_CONSECUTIVE_MESSAGE_SKIPS 25
 
 void *tcp_thread_sack(void *ptr);
 void *udp_thread_sack(void *ptr);
@@ -485,6 +486,10 @@ void *udp_thread_nack(void *sock)
             fseek(outfp, m_msg.chunkNum * MESSAGE_SIZE, SEEK_SET);
             fwrite(m_msg.val, m_msg.msg_size, sizeof(char), outfp);
 
+            if(m_msg.chunkNum == 1562) {
+                printf("\n");
+            }
+
             received[received_array_index] = m_msg.chunkNum;
             received_array_index += 1;
 
@@ -645,13 +650,14 @@ void *udp_thread_sack(void *sock)
 
     while (1)
     {
+        // pthread_mutex_lock(&mutex2);
         printf("UDP: Begin receive loop\n");
 
         for (int i = 0; i < sections; i++)
         { //reset received array
             received[i] = -1;
         }
-        
+        int none_received = 0;
         while (1)
         {
             if (all_sent)
@@ -665,10 +671,19 @@ void *udp_thread_sack(void *sock)
 
             // printf("%d\n%s\n", m_msg.chunkNum, m_msg.val);
 
-            if (prev_msg.chunkNum == m_msg.chunkNum || ack.sack[m_msg.chunkNum])
-            {             //check if value is previous message received
-                continue; //or already in the ack array, if so, continue
+            if (prev_msg.chunkNum == m_msg.chunkNum)    //check if value is previous message received
+            {
+                // printf("Received same value %d\n", none_received);
+                none_received += 1;
+                continue; 
+            } else {
+                none_received = 0;
             }
+
+            if(ack.sack[m_msg.chunkNum]) {  //message is resent for some reason, just skip
+                continue;
+            }
+
             if(m_msg.chunkNum == -1) {
                 continue;
             }
