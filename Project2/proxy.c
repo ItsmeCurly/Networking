@@ -7,15 +7,17 @@
 #include <netdb.h>
 #include <errno.h>
 
-int i = 0;
-pthread_t tid[15];
 void *Handle_Comm(void *);
+
+pthread_t tid[15];
 char client_message[20000];
 int send_size, recv_size;
+
 int main(int argc, char *argv[])
 {
     int socket_desc, client_sock, c, read_size;
     struct sockaddr_in server, client, my_addr;
+
     socket_desc = socket(AF_INET, SOCK_STREAM, 0);
     client_sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -50,21 +52,23 @@ int main(int argc, char *argv[])
 
         printf("Connection accepted... Creating thread to handle communiction\n\n");
         fflush(stdout);
-        pthread_create(&(tid[i]), NULL, Handle_Comm, &client_sock);
+        pthread_create(&(tid[i]), NULL, handle_comm, &client_sock);
         i++;
         if (i == 15)
             i = 0;
     }
 }
-void *Handle_Comm(void *Socket)
+
+void* handle_comm(void *socket) 
 {
-    int Client_Sock = *((int *)Socket);
-    recv_size = recv(Client_Sock, client_message, 32, 0);
+    int client_sock = *((int *)socket);
+    recv_size = recv(client_sock, client_message, 32, 0);
+
     printf("Received %d bytes. Msg is:\n %s \n",
            recv_size, client_message);
 
     sprintf(client_message, "We will get back to you shortly..\n");
-    send_size = send(*((int *)Socket), client_message, 32, 0);
+    send_size = send(client_sock, client_message, 32, 0);
     printf("Thread Exiting!\n");
     fflush(stdout);
 }
