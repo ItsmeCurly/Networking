@@ -6,69 +6,240 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <stdbool.h>
 
-void *Handle_Comm(void *);
+#define LOCAL_IP "192.168.144.133"
+#define PORT 10059
+#define MAX_REQUEST_SIZE 8192
+#define MAX_RESPONSE_SIZE 1048576
+
+void *handle_comm(void *);
+char *trim(char *str);
 
 pthread_t tid[15];
-char client_message[20000];
-int send_size, recv_size;
+
+bool DEBUG = 1;
+
+struct thread_args
+{
+    int client_sock;
+    int pthread_id;
+};
 
 int main(int argc, char *argv[])
 {
-    int socket_desc, client_sock, c, read_size;
+
+    int pthread_id = 0;
+    int proxy_sock, client_sock, c, read_size;
     struct sockaddr_in server, client, my_addr;
 
-    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    proxy_sock = socket(AF_INET, SOCK_STREAM, 0);
     client_sock = socket(AF_INET, SOCK_STREAM, 0);
 
     printf("Sockets created\n");
 
     server.sin_family = AF_INET;
-    server.sin_port = htons(10059);
-    inet_pton(AF_INET, "130.111.216.48", &(server.sin_addr));
+    server.sin_port = htons(PORT);
+    inet_pton(AF_INET, LOCAL_IP, &(server.sin_addr));
 
-    if (bind(socket_desc, (struct sockaddr *)&server, sizeof(server)) < 0)
+    if (bind(proxy_sock, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
         perror("Bind failed. Error");
         return 1;
     }
-    printf("bind completed \n");
+    printf("Bind completed \n");
 
     c = sizeof(struct sockaddr_in);
 
-    listen(socket_desc, 15);
+    listen(proxy_sock, 15);
 
     while (1)
     {
         printf("Waiting for incoming connections...\n\n");
         fflush(stdout);
 
-        client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t *)&c);
+        client_sock = accept(proxy_sock, (struct sockaddr *)&client, (socklen_t *)&c);
         if (client_sock < 0)
         {
             perror("accept failed");
             return 1;
         }
 
-        printf("Connection accepted... Creating thread to handle communiction\n\n");
+        printf("Connection accepted... Creating thread to handle communication\n\n");
         fflush(stdout);
-        pthread_create(&(tid[i]), NULL, handle_comm, &client_sock);
-        i++;
-        if (i == 15)
-            i = 0;
+
+        struct thread_args *ta = malloc(sizeof(struct thread_args));
+
+        ta->pthread_id = pthread_id;
+        ta->client_sock = client_sock;
+
+        pthread_create(&(tid[pthread_id]), NULL, handle_comm, ta);
+
+        pthread_id++;
+        if (pthread_id == 15)
+            pthread_id = 0;
     }
 }
 
-void* handle_comm(void *socket) 
+void *handle_comm(void *thread_args)
 {
-    int client_sock = *((int *)socket);
-    recv_size = recv(client_sock, client_message, 32, 0);
+#define ta ((struct thread_args *)thread_args)
 
-    printf("Received %d bytes. Msg is:\n %s \n",
-           recv_size, client_message);
+    char client_message[MAX_REQUEST_SIZE];
+    int send_size, recv_size;
 
-    sprintf(client_message, "We will get back to you shortly..\n");
-    send_size = send(client_sock, client_message, 32, 0);
-    printf("Thread Exiting!\n");
+    // printf("%d\n", client_sock);
+
+    recv_size = recv(ta->client_sock, client_message, MAX_REQUEST_SIZE, 0);
+
+    // printf("Received %d bytes. Msg is:\n\n%s \n",
+    //        recv_size, client_message);
+
     fflush(stdout);
+
+    char *temp = calloc(strlen(client_message) + 1, sizeof(char));
+    strcpy(temp, client_message);
+
+    char *request = strtok(temp, " ");
+
+    if (strcmp(request, "GET") != 0)
+    {
+        printf("Got a %s request, exiting thread %d\n", request, ta->pthread_id);
+        pthread_exit(NULL);
+    }
+    else
+    {
+        printf("Got a GET request\n");
+    }
+
+    //--------------------------
+    // parse host name
+    //--------------------------
+
+    char *temp_host, *host_name;
+
+    strtok(NULL, "\n"); //end of header
+
+    while (1)
+    {
+        temp_host = strtok(NULL, " ");  //Host:
+        host_name = strtok(NULL, "\n"); //host name
+        if (strcmp(temp_host, "Host:") == 0)
+        {
+            break;
+        }
+    }
+
+    printf("Thread %d: %s\n", ta->pthread_id, host_name);
+
+    //--------------------------
+    // end parse host name
+    //--------------------------
+
+    // free(temp);
+    // free(temp_host);
+
+    struct addrinfo *servinfo, *rp;
+    struct addrinfo hints;
+
+    char *port = "80";
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    // printf("before trim string is %s\n", host_name);
+    // printf("length before: %ld\n", strlen(host_name)); //should be 10
+
+    host_name = trim(host_name);
+
+    // if (DEBUG)
+    // {
+    //     printf("after trim string is %s\n", host_name);
+    //     printf("length after: %ld\n", strlen(host_name)); //should be 8
+    // }
+
+    int status = getaddrinfo(host_name, port, &hints, &servinfo);
+
+    if (DEBUG)
+    {
+        printf("Address Info Status: %d\n", status);
+    }
+
+    printf("IP addresses for %s:\n\n", host_name);
+
+    //code got from https://beej.us/guide/bgnet/examples/showip.c
+
+    char ipstr[INET6_ADDRSTRLEN];
+
+    for(rp = servinfo; rp != NULL; rp = rp->ai_next) {
+		void *addr;
+		char *ipver;
+
+		// get the pointer to the address itself,
+		// different fields in IPv4 and IPv6:
+		if (rp->ai_family == AF_INET) { // IPv4
+			struct sockaddr_in *ipv4 = (struct sockaddr_in *)rp->ai_addr;
+			addr = &(ipv4->sin_addr);
+			ipver = "IPv4";
+		} else { // IPv6
+			struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)rp->ai_addr;
+			addr = &(ipv6->sin6_addr);
+			ipver = "IPv6";
+		}
+
+		// convert the IP to a string and print it:
+		inet_ntop(rp->ai_family, addr, ipstr, sizeof ipstr);
+		printf("%s: %s\n", ipver, ipstr);
+	}
+
+    freeaddrinfo(servinfo); // free the linked list
+
+    struct sockaddr_in server_sa;
+
+    int err;
+
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+    server_sa.sin_family = AF_INET;
+    server_sa.sin_port = htons(80);
+    inet_pton(AF_INET, ipstr, &(server_sa.sin_addr));
+
+    int err_connect = connect(server_fd, (struct sockaddr *)&server_sa, sizeof(server_sa));
+    if (err_connect != 0)
+    {
+        perror("Connect");
+        exit(0);
+    }
+
+    printf("Thread %d: Connected successfully to %s at port %d \n", ta->pthread_id, inet_ntoa(server_sa.sin_addr), htons(server_sa.sin_port));
+
+    int send_server = send(server_fd, &client_message, sizeof(client_message), 0);
+    printf("Thread %d: Sent %d bytes to server\n", ta->pthread_id, send_server);
+
+    char buf[MAX_RESPONSE_SIZE];
+
+    int recv_server = recv(server_fd, buf, sizeof(buf), MSG_WAITALL);
+    printf("Thread %d: Received %d bytes from server!\n", ta->pthread_id, recv_server);
+
+    send(ta->client_sock, buf, sizeof(buf), 0);
+
+    printf("Thread %d: Sent data back to client\n", ta->pthread_id);
+
+    // printf("Thread Exiting!\n");
+    fflush(stdout);
+}
+
+char *trim(char *str)
+{
+    char *end;
+    end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end))
+    {
+        end--;
+    }
+    *(++end) = '\0'; //this line causes the segfault
+    return str;
 }
