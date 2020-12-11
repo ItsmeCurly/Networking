@@ -1,0 +1,24 @@
+Begin logging session
+
+Begin logging session
+
+10 12 2020 - 19 56 43: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+10 12 2020 - 19 56 44: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+10 12 2020 - 19 56 45: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+10 12 2020 - 19 56 45: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+10 12 2020 - 19 56 45: GET http://aturing.umcs.maine.edu/favicon.ico HTTP/1.1
+10 12 2020 - 19 57 04: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+10 12 2020 - 19 57 05: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+Begin logging session
+
+2020/12/10 - 19:58:35: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+2020/12/10 - 19:58:35: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+2020/12/10 - 19:58:41: CONNECT spocs.getpocket.com:443 HTTP/1.1
+2020/12/10 - 19:58:41: CONNECT getpocket.cdn.mozilla.net:443 HTTP/1.1
+2020/12/10 - 19:58:55: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+2020/12/10 - 19:58:55: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+2020/12/10 - 19:58:55: GET http://aturing.umcs.maine.edu/favicon.ico HTTP/1.1
+2020/12/10 - 19:59:25: GET http://aturing.umcs.maine.edu/~phillip.dickens/sarah.html HTTP/1.1
+2020/12/10 - 19:59:25: GET http://aturing.umcs.maine.edu/~phillip.dickens/Cat.jpg HTTP/1.1
+2020/12/10 - 19:59:25: GET http://aturing.umcs.maine.edu/favicon.ico HTTP/1.1
+2020/12/10 - 20:00:26: CONNECT push.services.mozilla.com:443 HTTP/1.1

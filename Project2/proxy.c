@@ -10,15 +10,18 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-#define LOCAL_IP "192.168.144.133"
+#define LOCAL_IP "192.168.144.136"
 #define PORT 10059
 #define MAX_REQUEST_SIZE 8192
 #define MAX_RESPONSE_SIZE 1048576
 
 void *handle_comm(void *);
 char *trim(char *str);
+void log_info(char* msg);
 
 pthread_t tid[15];
+
+FILE *f;
 
 bool DEBUG = 1;
 
@@ -32,11 +35,11 @@ int main(int argc, char *argv[])
 {
 
     int pthread_id = 0;
-    int proxy_sock, client_sock, c, read_size;
-    struct sockaddr_in server, client, my_addr;
+    int proxy_fd, client_fd;
+    struct sockaddr_in server, client;
 
-    proxy_sock = socket(AF_INET, SOCK_STREAM, 0);
-    client_sock = socket(AF_INET, SOCK_STREAM, 0);
+    proxy_fd = socket(AF_INET, SOCK_STREAM, 0);
+    client_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     printf("Sockets created\n");
 
@@ -44,24 +47,41 @@ int main(int argc, char *argv[])
     server.sin_port = htons(PORT);
     inet_pton(AF_INET, LOCAL_IP, &(server.sin_addr));
 
-    if (bind(proxy_sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+    if (bind(proxy_fd, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
         perror("Bind failed. Error");
         return 1;
     }
     printf("Bind completed \n");
 
-    c = sizeof(struct sockaddr_in);
+    f = fopen("proxy.log", "a+");
 
-    listen(proxy_sock, 15);
+    if (f == NULL) {
+        printf("Could not open the log file\n");
+        perror("Log file open\n");
+
+        return 1;
+    }
+
+    int err = fprintf(f, "Begin logging session\n\n");
+
+    if (err < 0) {
+        printf("Error writing to file\n");
+    }
+
+    fflush(f);
+
+    int c = sizeof(struct sockaddr_in);
+
+    listen(proxy_fd, 15);
 
     while (1)
     {
         printf("Waiting for incoming connections...\n\n");
         fflush(stdout);
 
-        client_sock = accept(proxy_sock, (struct sockaddr *)&client, (socklen_t *)&c);
-        if (client_sock < 0)
+        client_fd = accept(proxy_fd, (struct sockaddr *)&client, (socklen_t *)&c);
+        if (client_fd < 0)
         {
             perror("accept failed");
             return 1;
@@ -73,7 +93,7 @@ int main(int argc, char *argv[])
         struct thread_args *ta = malloc(sizeof(struct thread_args));
 
         ta->pthread_id = pthread_id;
-        ta->client_sock = client_sock;
+        ta->client_sock = client_fd;
 
         pthread_create(&(tid[pthread_id]), NULL, handle_comm, ta);
 
@@ -88,7 +108,7 @@ void *handle_comm(void *thread_args)
 #define ta ((struct thread_args *)thread_args)
 
     char client_message[MAX_REQUEST_SIZE];
-    int send_size, recv_size;
+    int recv_size;
 
     // printf("%d\n", client_sock);
 
@@ -100,7 +120,14 @@ void *handle_comm(void *thread_args)
     fflush(stdout);
 
     char *temp = calloc(strlen(client_message) + 1, sizeof(char));
+    char *temp2 = calloc(strlen(client_message) + 1, sizeof(char));
+
     strcpy(temp, client_message);
+    strcpy(temp2, client_message);
+
+    char *request_line = strtok(temp2, "\n");
+
+    log_info(request_line);
 
     char *request = strtok(temp, " ");
 
@@ -199,8 +226,6 @@ void *handle_comm(void *thread_args)
 
     struct sockaddr_in server_sa;
 
-    int err;
-
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
     server_sa.sin_family = AF_INET;
@@ -230,6 +255,8 @@ void *handle_comm(void *thread_args)
 
     // printf("Thread Exiting!\n");
     fflush(stdout);
+
+    pthread_exit(NULL);
 }
 
 char *trim(char *str)
@@ -240,6 +267,22 @@ char *trim(char *str)
     {
         end--;
     }
-    *(++end) = '\0'; //this line causes the segfault
+    *(++end) = '\0';
     return str;
+}
+
+void log_info(char* message) {
+    struct tm *tm;
+    time_t t;
+    char str_time[100];
+    char str_date[100];
+
+    t = time(NULL);
+    tm = localtime(&t);
+
+    strftime(str_time, sizeof(str_time), "%H:%M:%S", tm);
+    strftime(str_date, sizeof(str_date), "%Y/%m/%d", tm);
+    fprintf(f, "%s - %s: %s\n", str_date, str_time, message);
+
+    fflush(f);
 }
