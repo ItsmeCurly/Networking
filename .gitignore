@@ -16,3 +16,4 @@ Project1/client.c
 Project1/client.o
 out.txt
 Project2/.vscode/settings.json
+*.log

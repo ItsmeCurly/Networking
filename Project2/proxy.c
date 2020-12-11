@@ -10,8 +10,8 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-#define LOCAL_IP "192.168.144.136"
-#define PORT 10059
+#define LOCAL_IP "130.111.46.105"
+#define PORT 45059
 #define MAX_REQUEST_SIZE 8192
 #define MAX_RESPONSE_SIZE 1048576
 
@@ -23,7 +23,7 @@ pthread_t tid[15];
 
 FILE *f;
 
-bool DEBUG = 1;
+bool DEBUG = 0;
 
 struct thread_args
 {
