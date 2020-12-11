@@ -110,12 +110,12 @@ void *handle_comm(void *thread_args)
     char client_message[MAX_REQUEST_SIZE];
     int recv_size;
 
-    // printf("%d\n", client_sock);
-
     recv_size = recv(ta->client_sock, client_message, MAX_REQUEST_SIZE, 0);
-
-    // printf("Received %d bytes. Msg is:\n\n%s \n",
-    //        recv_size, client_message);
+    
+    if(DEBUG) {
+        printf("Received %d bytes. Msg is:\n\n%s \n",
+           recv_size, client_message);
+    }
 
     fflush(stdout);
 

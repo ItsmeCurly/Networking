@@ -1,15 +1,13 @@
-CXX = gcc
-CXXFLAGS = -Wall -Werror -Wextra -pedantic -std=c++17 -g -fsanitize=address
-LDFLAGS =  -fsanitize=address
+CC = gcc
 
-SRC = 
-OBJ = $(SRC:.cc=.o)
-EXEC = proxy.c
+CFLAGS  = -pthread -g -Wall
 
-all: $(EXEC)
+TARGET = proxy
 
-$(EXEC): $(OBJ)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJ) $(LBLIBS)
+all: $(TARGET)
+
+$(TARGET): $(TARGET).c
+	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c
 
 clean:
-	rm -rf $(OBJ) $(EXEC)
+	$(RM) $(TARGET)
